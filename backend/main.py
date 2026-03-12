@@ -7,12 +7,15 @@ import shap
 import numpy as np
 from datetime import datetime
 
-# ── Load both models ──
+# ── Load all 3 models ──
 xgb_model = joblib.load("model/fraud_model.pkl")
 lgb_model = joblib.load("model/lgb_model.pkl")
+paysim_model = joblib.load("model/paysim_model.pkl")
 feature_names = joblib.load("model/feature_names.pkl")
+paysim_feature_names = joblib.load("model/paysim_feature_names.pkl")
 xgb_threshold = joblib.load("model/threshold.pkl")
 lgb_threshold = joblib.load("model/lgb_threshold.pkl")
+paysim_threshold = joblib.load("model/paysim_threshold.pkl")
 
 # ── SHAP explainer (XGBoost) ──
 explainer = shap.TreeExplainer(xgb_model)
@@ -47,15 +50,19 @@ def root():
 def predict(transaction: Transaction):
     row = pd.DataFrame([transaction.features])[feature_names]
 
-    # Both models score the transaction
+  # XGBoost + LightGBM scores (credit card features)
     xgb_score = float(xgb_model.predict_proba(row)[0][1])
     lgb_score = float(lgb_model.predict_proba(row)[0][1])
 
-    # Ensemble — weighted average (XGBoost slightly favoured)
-    final_score = (xgb_score * 0.6) + (lgb_score * 0.4)
+    # PaySim score (ASEAN mobile money features)
+    paysim_row = pd.DataFrame([transaction.features])[paysim_feature_names]
+    paysim_score = float(paysim_model.predict_proba(paysim_row)[0][1])
 
-    # Decision
-    if xgb_score >= xgb_threshold or lgb_score >= lgb_threshold:
+    # Final ensemble — all 3 models vote
+    final_score = (xgb_score * 0.4) + (lgb_score * 0.3) + (paysim_score * 0.3)
+
+    # Decision — block if ANY model is highly confident
+    if xgb_score >= xgb_threshold or lgb_score >= lgb_threshold or paysim_score >= paysim_threshold:
         decision = "BLOCK"
         color = "red"
     elif final_score >= 0.4:
@@ -85,7 +92,8 @@ def predict(transaction: Transaction):
         "confidence": f"{round(final_score * 100, 1)}%",
         "xgb_score": round(xgb_score, 4),
         "lgb_score": round(lgb_score, 4),
-        "models_used": "XGBoost + LightGBM Ensemble"
+        "paysim_score": round(paysim_score, 4),
+        "models_used": "XGBoost + LightGBM + PaySim Ensemble"
     }
 
 @app.post("/explain")
@@ -125,10 +133,18 @@ def stats():
                 "auc_roc": 0.9865,
                 "threshold": round(float(lgb_threshold), 4)
             },
-            "ensemble": {
-                "auc_roc": 0.9854,
-                "strategy": "Weighted average — XGBoost 60%, LightGBM 40%"
-            }
+           "paysim": {
+            "precision": 0.96,
+            "recall": 0.78,
+            "f1_score": 0.86,
+            "auc_roc": 0.9929,
+            "threshold": round(float(paysim_threshold), 4),
+            "trained_on": "ASEAN mobile money transactions"
+        },
+        "ensemble": {
+            "strategy": "XGBoost 40% + LightGBM 30% + PaySim 30%",
+            "note": "PaySim adds ASEAN digital wallet context"
+        }
         },
         "total_transactions": len(transaction_history),
         "fraud_blocked": sum(1 for t in transaction_history if t["decision"] == "BLOCK"),
