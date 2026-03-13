@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pandas
+numpy
+joblib
+scikit-learn
+xgboost
+lightgbm
+shap
+imbalanced-learn
+python-dotenv
+groq
+requests
+pydantic
