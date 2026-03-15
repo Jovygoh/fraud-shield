@@ -1006,8 +1006,6 @@
         </div>
       </div>
     </div>
-
-  </div>
   </div>
 
   <!-- ==================== PAGE 2: SCORER ==================== -->
@@ -1094,8 +1092,6 @@
         </div>
       </div>
     </div>
-
-  </div>
   </div>
 
   <!-- ==================== PAGE 3: PERFORMANCE ==================== -->
@@ -1108,8 +1104,6 @@
         </div>
       </div>
     </div>
-
-  </div>
   </div>
 
   <!-- ==================== PAGE 4: CHAT ==================== -->
@@ -1141,8 +1135,6 @@
         </div>
       </div>
     </div>
-
-  </div>
   </div>
 
   <script>
@@ -1240,6 +1232,15 @@
     // ── TRANSACTION SCORER ───────────────────────────────────────
     let lastFeatures = null;
 
+    // Initialize transaction details with default values
+    function initializeTransactionDetails() {
+      document.getElementById('d-type').textContent = '—';
+      document.getElementById('d-mismatch').textContent = '—';
+    }
+
+    // Call initialization when page loads
+    initializeTransactionDetails();
+
     async function runDemo() {
       const btn = document.getElementById('demo-btn');
       const errEl = document.getElementById('scorer-error');
@@ -1303,14 +1304,14 @@
 
         // Step 6: transaction details - FIXED HERE
         const f = lastFeatures;
-        document.getElementById('d-amount').textContent = f.amount_log ? f.amount_log.toFixed(2) : '—';
+        document.getElementById('d-amount').textContent = f.amount_log ? f.amount_log.toFixed(2) : '0.00';
 
-        // FIX 1: Type display - shows "Transfer" for 1, "Purchase" for 0
+        // FIX 1: Type display - shows "Transfer" for 1, "Purchase" for 0 (never shows dash)
         document.getElementById('d-type').textContent = f.is_transfer == 1 ? 'Transfer' : 'Purchase';
 
-        document.getElementById('d-time').textContent = f.hour !== undefined ? f.hour + ':00' : '—';
+        document.getElementById('d-time').textContent = f.hour !== undefined ? f.hour + ':00' : '0:00';
 
-        // FIX 2: Balance mismatch display - shows "YES" for 1, "NO" for 0
+        // FIX 2: Balance mismatch display - shows "YES" for 1, "NO" for 0 (never shows dash)
         const mismatch = f.balance_mismatch;
         document.getElementById('d-mismatch').textContent = mismatch == 1 ? 'YES' : 'NO';
         document.getElementById('d-mismatch').style.color = mismatch == 1 ? 'var(--red)' : 'var(--green)';
