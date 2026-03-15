@@ -54,8 +54,13 @@ def predict(transaction: Transaction):
     xgb_score = float(xgb_model.predict_proba(row)[0][1])
     lgb_score = float(lgb_model.predict_proba(row)[0][1])
 
-    # PaySim score (ASEAN mobile money features)
-    paysim_row = pd.DataFrame([transaction.features])[paysim_feature_names]
+# PaySim score (ASEAN mobile money features)
+    # Fill missing PaySim features with 0 if not provided
+    features_with_defaults = {**transaction.features}
+    for col in paysim_feature_names:
+        if col not in features_with_defaults:
+            features_with_defaults[col] = 0
+    paysim_row = pd.DataFrame([features_with_defaults])[paysim_feature_names]
     paysim_score = float(paysim_model.predict_proba(paysim_row)[0][1])
 
     # Final ensemble — all 3 models vote
