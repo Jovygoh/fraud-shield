@@ -9,7 +9,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # ── FastAPI base URL ──
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://fraud-shield-production-d3a8.up.railway.app"
 
 # ── Tool definitions ──
 tools = [
