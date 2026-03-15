@@ -164,6 +164,10 @@ def simulate():
     fake = {f: round(random.uniform(-3, 3), 4) for f in feature_names if f not in ["hour", "amount_log"]}
     fake["hour"] = random.randint(0, 23)
     fake["amount_log"] = round(random.uniform(0, 8), 4)
+    fake["is_transfer"] = random.randint(0, 1)
+    fake["balance_mismatch"] = random.randint(0, 1)
+    fake["orig_balance_diff"] = round(random.uniform(-5000, 5000), 2)
+    fake["dest_balance_diff"] = round(random.uniform(-5000, 5000), 2)
     return {"features": fake}
 
 @app.get("/patterns")
