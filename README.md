@@ -3,9 +3,10 @@
 > **Real-time AI-powered fraud detection for financial transactions**  
 > Built for VHack 2026 — Case Study 2: Financial Fraud Detection
 
+[![Live Frontend](https://img.shields.io/badge/Frontend-Live%20on%20Vercel-blueviolet)](https://fraud-shield-flame.vercel.app)
 [![Live API](https://img.shields.io/badge/API-Live%20on%20Railway-success)](https://fraud-shield-production-d3a8.up.railway.app)
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104-green)](https://fastapi.tiangolo.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-green)](https://fastapi.tiangolo.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
@@ -14,7 +15,8 @@
 
 | Service | URL |
 |---|---|
-| **Live API** | https://fraud-shield-production-d3a8.up.railway.app |
+| **Live Frontend Dashboard** | https://fraud-shield-flame.vercel.app |
+| **Live Backend API** | https://fraud-shield-production-d3a8.up.railway.app |
 | **Interactive API Docs** | https://fraud-shield-production-d3a8.up.railway.app/docs |
 
 ---
@@ -23,9 +25,9 @@
 
 FraudShield is a real-time fraud detection system that uses an ensemble of three machine learning models to analyse financial transactions and classify them as **APPROVE**, **FLAG**, or **BLOCK** within milliseconds.
 
-It is built to detect two types of fraud:
+It detects two types of fraud:
 - **Credit card fraud** — using anonymised PCA-transformed transaction features (V1–V28)
-- **ASEAN mobile money fraud** — targeting TRANSFER and CASH_OUT transactions common in Southeast Asian payment systems
+- **ASEAN mobile money fraud** — targeting TRANSFER and CASH_OUT transactions common in Southeast Asian payment systems like Touch 'n Go, GrabPay, and DuitNow
 
 ---
 
@@ -42,8 +44,8 @@ It is built to detect two types of fraud:
 ### Decision Logic
 
 ```
-BLOCK  → if ANY single model score ≥ its individual threshold
-FLAG   → if ensemble weighted score ≥ 0.4
+BLOCK   → if ANY single model score ≥ its individual threshold
+FLAG    → if ensemble weighted score ≥ 0.4
 APPROVE → otherwise
 ```
 
@@ -71,19 +73,21 @@ The ensemble combines their strengths. If any single model is highly confident, 
 Users / Judges
       │
       ▼
-React Dashboard (Member 3)
+┌─────────────────────────────────────┐
+│  Vercel (Frontend)                  │
+│  fraud-shield-flame.vercel.app      │
+│  Dashboard · Scorer · Stats · Chat  │
+└─────────────────────────────────────┘
       │  HTTPS fetch()
       ▼
 ┌─────────────────────────────────────┐
 │  Railway Cloud (us-west-2)          │
-│                                     │
-│  FastAPI Backend (main.py)          │
+│  FastAPI Backend                    │
 │  ┌─────────┬──────────┬──────────┐  │
 │  │XGBoost  │LightGBM  │ PaySim   │  │
 │  │  40%    │  30%     │  30%     │  │
 │  └────────────────────────────────  │
 │         Ensemble Decision           │
-│                                     │
 │  AI Agent (Groq + Llama 3.3 70B)   │
 │  MCP Server (5 tools)               │
 └─────────────────────────────────────┘
@@ -94,16 +98,29 @@ Groq API (external)
 
 ---
 
+## 🖥️ Frontend Dashboard
+
+Built with vanilla HTML, CSS, and JavaScript — no framework needed. 4 pages:
+
+| Page | Description |
+|---|---|
+| **Dashboard** | System overview — live stats, pattern alerts, transaction history |
+| **Transaction Scorer** | Demo button, fraud gauge, model breakdown, SHAP explanation |
+| **Model Performance** | Precision, recall, F1, AUC-ROC for all 3 models |
+| **AI Chat** | Conversational AI agent powered by Groq + Llama 3.3 70B |
+
+---
+
 ## 📡 API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/` | Health check |
-| `POST` | `/predict` | Score a transaction → APPROVE/FLAG/BLOCK |
+| `POST` | `/predict` | Score a transaction → APPROVE / FLAG / BLOCK |
 | `POST` | `/explain` | SHAP explanation — top 5 fraud features |
 | `GET` | `/history` | Last 20 scored transactions |
 | `GET` | `/stats` | Model performance metrics |
-| `POST` | `/simulate` | Generate fake transaction for demo |
+| `POST` | `/simulate` | Generate a random fake transaction for demo |
 | `GET` | `/patterns` | Detect fraud patterns (CARD_TESTING, MASS_FRAUD, etc.) |
 | `POST` | `/agent/chat` | Ask AI agent a question in plain English |
 
@@ -112,7 +129,7 @@ Groq API (external)
 ```bash
 curl -X POST https://fraud-shield-production-d3a8.up.railway.app/predict \
   -H "Content-Type: application/json" \
-  -d '{"features": {"V1": -1.36, "V2": -0.07, "V3": 2.54, "amount_log": 5.02, "is_transfer": 1}}'
+  -d '{"features": {"V1": -1.36, "V2": -0.07, "V3": 2.54, "amount_log": 5.02, "is_transfer": 1, "balance_mismatch": 1}}'
 ```
 
 Response:
@@ -170,13 +187,15 @@ FraudShield exposes a **Model Context Protocol (MCP)** server for programmatic i
 
 | Layer | Technology |
 |---|---|
+| Frontend | HTML, CSS, JavaScript (vanilla) |
+| Frontend Hosting | Vercel |
 | ML Models | XGBoost, LightGBM, scikit-learn |
 | Data Balancing | SMOTE (imbalanced-learn) |
 | Explainability | SHAP |
 | Backend | FastAPI, Uvicorn |
 | AI Agent | Groq API, Llama 3.3 70B |
 | MCP | Model Context Protocol |
-| Deployment | Railway (Docker) |
+| Backend Deployment | Railway (Docker) |
 | Language | Python 3.11 |
 
 ---
@@ -198,7 +217,7 @@ FraudShield exposes a **Model Context Protocol (MCP)** server for programmatic i
 - Python 3.11+
 - pip
 
-### Setup
+### Backend Setup
 
 ```bash
 # Clone the repo
@@ -218,6 +237,14 @@ uvicorn main:app --reload
 Server runs at: `http://127.0.0.1:8000`  
 API docs at: `http://127.0.0.1:8000/docs`
 
+### Frontend Setup
+
+```bash
+cd fraud-shield/frontend
+# Open index.html in browser directly
+# OR use Live Server extension in VS Code / Cursor
+```
+
 ### Get a Free Groq API Key
 1. Go to [console.groq.com](https://console.groq.com)
 2. Sign up for a free account
@@ -226,40 +253,42 @@ API docs at: `http://127.0.0.1:8000/docs`
 
 ### Train Models (Optional)
 
-The pre-trained model files are included in `backend/model/`. To retrain:
+Pre-trained model files are included in `backend/model/`. To retrain from scratch:
 
 ```bash
 cd notebooks
 jupyter notebook eda.ipynb
 ```
 
-> Download the datasets from Kaggle first (see Datasets section above).
+> Download datasets from Kaggle first (see Datasets section above).
 
 ---
 
 ## 🚢 Deployment
 
-FraudShield is deployed on **Railway** using Docker.
+### Backend — Railway
 
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
-
-# Login
-railway login
-
-# Deploy from backend folder
 cd backend
+railway login
 railway up
 ```
 
-The `Dockerfile` handles the `libgomp` dependency required by LightGBM:
+The `Dockerfile` handles the `libgomp` system dependency required by LightGBM:
 
 ```dockerfile
 FROM python:3.11-slim
-RUN apt-get update && apt-get install -y libgomp1
-# ...
+RUN apt-get update && apt-get install -y libgomp1 && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
+
+### Frontend — Vercel
+
+Push to the `main` branch on GitHub → Vercel auto-deploys instantly. No manual steps needed after initial setup.
 
 ---
 
@@ -268,36 +297,29 @@ RUN apt-get update && apt-get install -y libgomp1
 ```
 fraud-shield/
 ├── backend/
-│   ├── main.py              # FastAPI — 9 endpoints, 3-model ensemble
-│   ├── agent.py             # Groq AI agent
-│   ├── mcp_server.py        # MCP server (5 tools)
-│   ├── requirements.txt     # Python dependencies
-│   ├── Dockerfile           # Docker config for Railway
-│   ├── Procfile             # Railway process file
+│   ├── main.py                  # FastAPI — 8 endpoints, 3-model ensemble
+│   ├── agent.py                 # Groq AI agent (Llama 3.3 70B)
+│   ├── mcp_server.py            # MCP server (5 tools)
+│   ├── requirements.txt         # Python dependencies
+│   ├── Dockerfile               # Docker config for Railway
+│   ├── Procfile                 # Railway process file
 │   └── model/
 │       ├── fraud_model.pkl          # XGBoost model
 │       ├── lgb_model.pkl            # LightGBM model
 │       ├── paysim_model.pkl         # PaySim model
-│       ├── feature_names.pkl        # Credit card features
-│       ├── paysim_feature_names.pkl # PaySim features
+│       ├── feature_names.pkl        # Credit card feature names
+│       ├── paysim_feature_names.pkl # PaySim feature names
 │       ├── threshold.pkl            # XGBoost threshold (0.9928)
 │       ├── lgb_threshold.pkl        # LightGBM threshold (0.9874)
 │       └── paysim_threshold.pkl     # PaySim threshold (0.9908)
-├── frontend/                # React dashboard (Member 3)
+├── frontend/
+│   ├── index.html               # Main HTML structure
+│   ├── styles.css               # All styles
+│   └── app.js                   # All JavaScript + API calls
 ├── notebooks/
-│   └── eda.ipynb            # Full training notebook
+│   └── eda.ipynb                # Full model training notebook
 └── .gitignore
 ```
-
----
-
-## 👥 Team
-
-| Member | Role |
-|---|---|
-| Member 1 | ML Models + FastAPI Backend + Deployment |
-| Member 3 | React Frontend Dashboard |
-| Member 4 | README + Demo Video + Presentation |
 
 ---
 
@@ -306,11 +328,12 @@ fraud-shield/
 Built for **VHack 2026 — Case Study 2: Financial Fraud Detection**
 
 Key highlights for judges:
-- ✅ **3-model ensemble** covering both credit card and ASEAN mobile money fraud
-- ✅ **Live deployed API** — test it right now at the URL above
-- ✅ **Explainable AI** — SHAP values show exactly why each transaction was flagged
-- ✅ **Conversational AI agent** — ask questions in plain English
-- ✅ **MCP integration** — production-ready tool interface
+- ✅ **Live frontend** — https://fraud-shield-flame.vercel.app
+- ✅ **Live backend API** — https://fraud-shield-production-d3a8.up.railway.app/docs
+- ✅ **3-model ensemble** — XGBoost + LightGBM + PaySim covering both credit card and ASEAN mobile money fraud
+- ✅ **Explainable AI** — SHAP values show exactly which features caused each fraud decision
+- ✅ **Conversational AI agent** — ask questions in plain English via Groq + Llama 3.3 70B
+- ✅ **MCP integration** — production-ready tool interface for enterprise use
 - ✅ **96% precision, 0.9929 AUC-ROC** on mobile money fraud detection
 
 ---
