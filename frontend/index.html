@@ -283,7 +283,7 @@
 
     .banner.danger {
       background: var(--red-bg);
-      border: 1px solid rgba(255, 61, 87, 0.2);
+      border: 1px solid rgba(255, 61, 87, 0.3);
       color: var(--red);
     }
 
@@ -1301,11 +1301,16 @@
         document.getElementById('psm-pct').textContent = psm.toFixed(1) + '%';
         document.getElementById('models-used').textContent = d.models_used || 'XGBoost 40% + LightGBM 30% + PaySim 30%';
 
-        // Step 6: transaction details
+        // Step 6: transaction details - FIXED HERE
         const f = lastFeatures;
         document.getElementById('d-amount').textContent = f.amount_log ? f.amount_log.toFixed(2) : '—';
-        document.getElementById('d-type').textContent = f.is_transfer ? (f.is_transfer == 1 ? 'Transfer' : 'Other') : '—';
+
+        // FIX 1: Type display - shows "Transfer" for 1, "Purchase" for 0
+        document.getElementById('d-type').textContent = f.is_transfer == 1 ? 'Transfer' : 'Purchase';
+
         document.getElementById('d-time').textContent = f.hour !== undefined ? f.hour + ':00' : '—';
+
+        // FIX 2: Balance mismatch display - shows "YES" for 1, "NO" for 0
         const mismatch = f.balance_mismatch;
         document.getElementById('d-mismatch').textContent = mismatch == 1 ? 'YES' : 'NO';
         document.getElementById('d-mismatch').style.color = mismatch == 1 ? 'var(--red)' : 'var(--green)';
