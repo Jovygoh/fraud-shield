@@ -41,7 +41,7 @@ async function loadStats_mini() {
     document.getElementById('stat-approved').textContent = data.approved ?? 0;
     document.getElementById('stat-flagged').textContent = data.flagged ?? 0;
     document.getElementById('stat-blocked').textContent = data.fraud_blocked ?? 0;
-  } catch {}
+  } catch { }
 }
 
 async function loadPatterns() {
@@ -62,7 +62,7 @@ async function loadPatterns() {
     };
     banner.className = 'banner ' + (classMap[pattern] || 'normal');
     text.innerHTML = `Pattern Status: <strong>${pattern}</strong> — ${data.message || 'System monitoring active'}`;
-  } catch {}
+  } catch { }
 }
 
 async function loadHistory() {
@@ -164,7 +164,8 @@ async function runDemo() {
     // Step 6: transaction details
     // FIX: Use explicit == 1 checks to handle 0 as a valid falsy value
     const f = lastFeatures;
-    document.getElementById('d-amount').textContent = f.amount_log ? f.amount_log.toFixed(2) : '0.00';
+    const rmAmount = Math.exp(f.amount_log || 0).toFixed(2);
+    document.getElementById('d-amount').textContent = f.amount_log ? `RM ${rmAmount}` : 'RM 0.00';
 
     // FIX: f.is_transfer == 0 is falsy in JS, so we check == 1 explicitly
     document.getElementById('d-type').textContent = f.is_transfer == 1 ? 'Transfer' : 'Purchase';
@@ -210,7 +211,7 @@ async function loadExplain(features) {
         <div class="shap-pct">${pct}%</div>
       </div>`;
     }).join('');
-  } catch {}
+  } catch { }
 }
 
 // ── MODEL PERFORMANCE ─────────────────────────────────────────────────────────
@@ -222,18 +223,18 @@ async function loadStats() {
     const grid = document.getElementById('stats-grid');
 
     const modelDefs = [
-      { key: 'xgboost',  label: 'XGBOOST',  sub: 'Credit card · 284K rows · 40% weight' },
+      { key: 'xgboost', label: 'XGBOOST', sub: 'Credit card · 284K rows · 40% weight' },
       { key: 'lightgbm', label: 'LIGHTGBM', sub: 'Credit card · 284K rows · 30% weight' },
-      { key: 'paysim',   label: 'PAYSIM',   sub: 'Mobile money · 2.77M rows · 30% weight' }
+      { key: 'paysim', label: 'PAYSIM', sub: 'Mobile money · 2.77M rows · 30% weight' }
     ];
 
     grid.innerHTML = modelDefs.map(m => {
       const stats = models[m.key] || {};
       const precision = stats.precision ?? 0;
-      const recall    = stats.recall ?? 0;
-      const f1        = stats.f1_score ?? 0;
-      const auc       = stats.auc_roc ?? 0;
-      const isTopAuc  = m.key === 'paysim';
+      const recall = stats.recall ?? 0;
+      const f1 = stats.f1_score ?? 0;
+      const auc = stats.auc_roc ?? 0;
+      const isTopAuc = m.key === 'paysim';
       return `<div class="model-card">
         <div class="model-card-header">
           <div class="model-card-title">${m.label}</div>
