@@ -79,10 +79,8 @@ async function loadHistory() {
       return;
     }
 
-    // Show total count in section label
     if (countEl) countEl.textContent = `${transactions.length} total`;
 
-    // Render ALL transactions newest first — table container handles scrolling
     tbody.innerHTML = transactions.slice().reverse().map(tx => {
       const score = (tx.score * 100).toFixed(1);
       const barColor = tx.color || (tx.decision === 'BLOCK' ? 'red' : tx.decision === 'FLAG' ? 'yellow' : 'green');
@@ -117,13 +115,11 @@ async function runDemo() {
   btn.innerHTML = '<span class="spinner"></span> SCORING TRANSACTION...';
 
   try {
-    // Step 1: simulate
     const simRes = await fetch(`${API}/simulate`, { method: 'POST' });
     if (!simRes.ok) throw new Error('Simulate failed');
     const simData = await simRes.json();
     lastFeatures = simData.features;
 
-    // Step 2: predict
     const predRes = await fetch(`${API}/predict`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -132,7 +128,6 @@ async function runDemo() {
     if (!predRes.ok) throw new Error('Predict failed');
     const d = await predRes.json();
 
-    // Step 3: decision block
     const block = document.getElementById('decision-block');
     const color = d.color || (d.decision === 'BLOCK' ? 'red' : d.decision === 'FLAG' ? 'yellow' : 'green');
     block.className = 'decision-block ' + color;
@@ -144,7 +139,6 @@ async function runDemo() {
     };
     document.getElementById('decision-sub').textContent = subs[d.decision] || '';
 
-    // Step 4: gauge
     const score = d.fraud_score * 100;
     const gaugeClass = score > 80 ? 'high' : score > 40 ? 'mid' : 'low';
     const gf = document.getElementById('gauge-fill');
@@ -155,7 +149,6 @@ async function runDemo() {
     document.getElementById('gauge-pct').style.color = pctColor;
     document.getElementById('gauge-pct').textContent = score.toFixed(1) + '%';
 
-    // Step 5: model bars
     const xgb = (d.xgb_score || 0) * 100;
     const lgb = (d.lgb_score || 0) * 100;
     const psm = (d.paysim_score || 0) * 100;
@@ -170,12 +163,9 @@ async function runDemo() {
     document.getElementById('psm-pct').textContent = psm.toFixed(1) + '%';
     document.getElementById('models-used').textContent = d.models_used || 'XGBoost 40% + LightGBM 30% + PaySim 30%';
 
-    // Step 6: transaction details
     const f = lastFeatures;
     const rmAmount = Math.exp(f.amount_log || 0).toFixed(2);
     document.getElementById('d-amount').textContent = `RM ${rmAmount}`;
-
-    // FIX: explicit == 1 check — 0 is falsy in JS
     document.getElementById('d-type').textContent = f.is_transfer == 1 ? 'Transfer' : 'Purchase';
     document.getElementById('d-time').textContent = f.hour !== undefined ? f.hour + ':00' : '0:00';
 
@@ -183,7 +173,6 @@ async function runDemo() {
     document.getElementById('d-mismatch').textContent = mismatch == 1 ? 'YES' : 'NO';
     document.getElementById('d-mismatch').style.color = mismatch == 1 ? 'var(--red)' : 'var(--green)';
 
-    // Step 7: SHAP explanation (show loading state while Groq generates summary)
     const container = document.getElementById('shap-container');
     container.innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:10px"><span class="spinner"></span> Generating explanation...</div>`;
     await loadExplain(lastFeatures);
@@ -209,7 +198,6 @@ const featureLabels = {
 
 function getFeatureLabel(name) {
   if (featureLabels[name]) return featureLabels[name];
-  // V1–V28 → "Signal N" — short enough to fit without truncation
   const match = name.match(/^V(\d+)$/i);
   if (match) return `Signal ${match[1]}`;
   return name;
@@ -233,7 +221,6 @@ async function loadExplain(features) {
       return;
     }
 
-    // ── AI plain English summary ──────────────────────
     const summaryHtml = summary
       ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;margin-bottom:14px;line-height:1.6">
           <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:5px;letter-spacing:1px">AI SUMMARY</div>
@@ -241,15 +228,11 @@ async function loadExplain(features) {
         </div>`
       : '';
 
-    // ── Normalize bar widths to max absolute value → bars always 0–100% ──
     const maxVal = Math.max(...topFeatures.map(f => Math.abs(f.importance)));
 
     const barsHtml = topFeatures.map(f => {
       const absVal   = Math.abs(f.importance);
       const barWidth = maxVal > 0 ? (absVal / maxVal * 100).toFixed(1) : 0;
-
-      // Positive SHAP = pushed score toward fraud
-      // Negative SHAP = pushed score toward legitimate
       const isPositive = f.importance >= 0;
       const barColor  = isPositive ? 'var(--red)'  : 'var(--green)';
       const direction = isPositive ? '▲ fraud'     : '▼ safe';
@@ -263,7 +246,6 @@ async function loadExplain(features) {
       </div>`;
     }).join('');
 
-    // ── Legend ────────────────────────────────────────
     const legendHtml = `
       <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--muted)">
         <span><span style="color:var(--red)">▲ fraud</span> — pushed score higher</span>
@@ -348,6 +330,18 @@ function sendQuick(q) {
   sendMsg();
 }
 
+// ── Fetch with explicit timeout to handle slow AI tool-call responses ─────────
+async function fetchWithTimeout(url, options = {}, timeoutMs = 90000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendMsg() {
   const input = document.getElementById('chat-input');
   const btn   = document.getElementById('chat-send-btn');
@@ -361,22 +355,67 @@ async function sendMsg() {
   btn.disabled   = true;
   msgs.scrollTop = msgs.scrollHeight;
 
+  // Thinking bubble with animated dots
   const thinkId = 'think-' + Date.now();
-  msgs.innerHTML += `<div class="chat-msg ai thinking" id="${thinkId}"><div class="ai-label">FRAUDSHIELD AI</div><span class="spinner"></span> Thinking...</div>`;
+  msgs.innerHTML += `
+    <div class="chat-msg ai thinking" id="${thinkId}">
+      <div class="ai-label">FRAUDSHIELD AI</div>
+      <span class="spinner"></span> Thinking<span class="dots"></span>
+    </div>`;
   msgs.scrollTop = msgs.scrollHeight;
 
+  // Animate dots while waiting
+  const dotsEl = document.querySelector(`#${thinkId} .dots`);
+  let dotCount = 0;
+  const dotsTimer = setInterval(() => {
+    dotCount = (dotCount + 1) % 4;
+    if (dotsEl) dotsEl.textContent = '.'.repeat(dotCount);
+  }, 400);
+
   try {
-    const res = await fetch(`${API}/agent/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q })
-    });
+    const res = await fetchWithTimeout(
+      `${API}/agent/chat`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q })
+      },
+      90000
+    );
+
+    clearInterval(dotsTimer);
+    document.getElementById(thinkId)?.remove();
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => `HTTP ${res.status}`);
+      throw new Error(`Server error ${res.status}: ${errText}`);
+    }
+
     const data = await res.json();
-    document.getElementById(thinkId).remove();
-    msgs.innerHTML += `<div class="chat-msg ai"><div class="ai-label">FRAUDSHIELD AI</div>${data.response || 'No response received.'}</div>`;
-  } catch {
-    document.getElementById(thinkId).remove();
-    msgs.innerHTML += `<div class="chat-msg ai"><div class="ai-label">FRAUDSHIELD AI</div>Sorry, I could not connect to the AI service. Please check that the backend is running.</div>`;
+    msgs.innerHTML += `
+      <div class="chat-msg ai">
+        <div class="ai-label">FRAUDSHIELD AI</div>
+        ${data.response || 'No response received.'}
+      </div>`;
+
+  } catch (err) {
+    clearInterval(dotsTimer);
+    document.getElementById(thinkId)?.remove();
+
+    let userMsg;
+    if (err.name === 'AbortError') {
+      userMsg = '⏱️ Request timed out — the AI took longer than 90 seconds. Try a simpler question or check if the backend is under load.';
+    } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+      userMsg = '🔌 Could not reach the backend. Check that the server is running and the API URL is correct.';
+    } else {
+      userMsg = `⚠️ ${err.message}`;
+    }
+
+    msgs.innerHTML += `
+      <div class="chat-msg ai" style="border-color:rgba(255,61,87,0.3)">
+        <div class="ai-label" style="color:var(--red)">ERROR</div>
+        ${userMsg}
+      </div>`;
   } finally {
     input.disabled = false;
     btn.disabled   = false;
