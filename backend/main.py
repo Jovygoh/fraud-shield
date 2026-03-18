@@ -50,11 +50,11 @@ def root():
 def predict(transaction: Transaction):
     row = pd.DataFrame([transaction.features])[feature_names]
 
-  # XGBoost + LightGBM scores (credit card features)
+    # XGBoost + LightGBM scores (credit card features)
     xgb_score = float(xgb_model.predict_proba(row)[0][1])
     lgb_score = float(lgb_model.predict_proba(row)[0][1])
 
-# PaySim score (ASEAN mobile money features)
+    # PaySim score (ASEAN mobile money features)
     # Fill missing PaySim features with 0 if not provided
     features_with_defaults = {**transaction.features}
     for col in paysim_feature_names:
@@ -106,7 +106,7 @@ def explain(transaction: Transaction):
     row = pd.DataFrame([transaction.features])[feature_names]
     shap_values = explainer.shap_values(row)
 
-    # Use signed values (not abs) so frontend knows direction
+    # Keep signed values — positive = pushes toward fraud, negative = pushes toward safe
     signed = dict(zip(feature_names, shap_values[0]))
     # Sort by absolute magnitude, keep top 5
     top_features = sorted(signed.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
@@ -117,10 +117,11 @@ def explain(transaction: Transaction):
             for f, v in top_features
         ]
     }
-    
+
 @app.get("/history")
 def history():
-    return {"transactions": transaction_history[-20:]}
+    # Return ALL transactions — frontend handles display limit & scrolling
+    return {"transactions": transaction_history}
 
 @app.get("/stats")
 def stats():
@@ -140,18 +141,18 @@ def stats():
                 "auc_roc": 0.9865,
                 "threshold": round(float(lgb_threshold), 4)
             },
-           "paysim": {
-            "precision": 0.96,
-            "recall": 0.78,
-            "f1_score": 0.86,
-            "auc_roc": 0.9929,
-            "threshold": round(float(paysim_threshold), 4),
-            "trained_on": "ASEAN mobile money transactions"
-        },
-        "ensemble": {
-            "strategy": "XGBoost 40% + LightGBM 30% + PaySim 30%",
-            "note": "PaySim adds ASEAN digital wallet context"
-        }
+            "paysim": {
+                "precision": 0.96,
+                "recall": 0.78,
+                "f1_score": 0.86,
+                "auc_roc": 0.9929,
+                "threshold": round(float(paysim_threshold), 4),
+                "trained_on": "ASEAN mobile money transactions"
+            },
+            "ensemble": {
+                "strategy": "XGBoost 40% + LightGBM 30% + PaySim 30%",
+                "note": "PaySim adds ASEAN digital wallet context"
+            }
         },
         "total_transactions": len(transaction_history),
         "fraud_blocked": sum(1 for t in transaction_history if t["decision"] == "BLOCK"),
@@ -176,7 +177,7 @@ def simulate():
 def patterns():
     """Detect fraud patterns from transaction history"""
     if len(transaction_history) < 3:
-        return {"pattern": None, "message": "Not enough transactions to detect patterns"}
+        return {"pattern": "NORMAL", "description": "Not enough transactions to detect patterns yet", "risk": "LOW"}
 
     recent = transaction_history[-10:]
     blocked = [t for t in recent if t["decision"] == "BLOCK"]
