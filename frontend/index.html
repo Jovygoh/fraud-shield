@@ -96,10 +96,13 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="section-label">Recent Transactions</div>
-        <div class="table-wrap">
-          <table>
+     <div class="card">
+  <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+    Recent Transactions
+    <span id="history-count" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0"></span>
+  </div>
+  <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+    <table>
             <thead>
               <tr>
                 <th>#</th>
