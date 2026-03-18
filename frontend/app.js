@@ -61,7 +61,7 @@ async function loadPatterns() {
       MASS_FRAUD: 'danger'
     };
     banner.className = 'banner ' + (classMap[pattern] || 'normal');
-    text.innerHTML = `Pattern Status: <strong>${pattern}</strong> — ${data.message || 'System monitoring active'}`;
+    text.innerHTML = `Pattern Status: <strong>${pattern}</strong> — ${data.message || data.description || 'System monitoring active'}`;
   } catch { }
 }
 
@@ -80,10 +80,12 @@ async function loadHistory() {
       const barColor = tx.color || (tx.decision === 'BLOCK' ? 'red' : tx.decision === 'FLAG' ? 'yellow' : 'green');
       const badgeClass = { APPROVE: 'badge-green', FLAG: 'badge-yellow', BLOCK: 'badge-red' }[tx.decision] || 'badge-green';
       const scoreColor = { red: 'var(--red)', yellow: 'var(--yellow)', green: 'var(--green)' }[barColor] || 'var(--muted)';
+      // Convert amount_log to RM for display
+      const rmAmount = tx.amount ? `RM ${Math.exp(tx.amount).toFixed(2)}` : '—';
       return `<tr>
         <td style="color:var(--muted);font-family:var(--mono)">#${tx.id}</td>
         <td>${tx.timestamp || '—'}</td>
-        <td style="font-family:var(--mono)">${tx.amount ? tx.amount.toFixed(2) : '—'}</td>
+        <td style="font-family:var(--mono)">${rmAmount}</td>
         <td><div class="mini-bar-wrap">
           <div class="mini-bar"><div class="mini-bar-fill ${barColor}" style="width:${score}%"></div></div>
           <div class="mini-score" style="color:${scoreColor}">${score}%</div>
@@ -162,17 +164,14 @@ async function runDemo() {
     document.getElementById('models-used').textContent = d.models_used || 'XGBoost 40% + LightGBM 30% + PaySim 30%';
 
     // Step 6: transaction details
-    // FIX: Use explicit == 1 checks to handle 0 as a valid falsy value
     const f = lastFeatures;
     const rmAmount = Math.exp(f.amount_log || 0).toFixed(2);
-    document.getElementById('d-amount').textContent = f.amount_log ? `RM ${rmAmount}` : 'RM 0.00';
+    document.getElementById('d-amount').textContent = `RM ${rmAmount}`;
 
-    // FIX: f.is_transfer == 0 is falsy in JS, so we check == 1 explicitly
+    // FIX: explicit == 1 check — 0 is falsy in JS
     document.getElementById('d-type').textContent = f.is_transfer == 1 ? 'Transfer' : 'Purchase';
-
     document.getElementById('d-time').textContent = f.hour !== undefined ? f.hour + ':00' : '0:00';
 
-    // FIX: f.balance_mismatch == 0 is falsy in JS, so we check == 1 explicitly
     const mismatch = f.balance_mismatch;
     document.getElementById('d-mismatch').textContent = mismatch == 1 ? 'YES' : 'NO';
     document.getElementById('d-mismatch').style.color = mismatch == 1 ? 'var(--red)' : 'var(--green)';
@@ -189,6 +188,25 @@ async function runDemo() {
   }
 }
 
+// ── SHAP FEATURE LABELS ───────────────────────────────────────────────────────
+const featureLabels = {
+  'amount_log':        'Amount',
+  'hour':              'Time of Day',
+  'is_transfer':       'Transfer Type',
+  'balance_mismatch':  'Balance Mismatch',
+  'orig_balance_diff': 'Sender Balance Δ',
+  'dest_balance_diff': 'Receiver Balance Δ',
+};
+
+function getFeatureLabel(name) {
+  if (featureLabels[name]) return featureLabels[name];
+  // V1–V28 → show as "Behaviour Signal N"
+  const match = name.match(/^V(\d+)$/i);
+  if (match) return `Behaviour Signal ${match[1]}`;
+  return name;
+}
+
+// ── SHAP EXPLANATION ──────────────────────────────────────────────────────────
 async function loadExplain(features) {
   try {
     const res = await fetch(`${API}/explain`, {
@@ -199,18 +217,41 @@ async function loadExplain(features) {
     const data = await res.json();
     const container = document.getElementById('shap-container');
     const topFeatures = data.top_features || [];
+
     if (topFeatures.length === 0) {
       container.innerHTML = '<div style="color:var(--muted);font-size:12px">No explanation available</div>';
       return;
     }
+
+    // Normalize bar widths to max absolute value → bars always fit 0–100%
+    const maxVal = Math.max(...topFeatures.map(f => Math.abs(f.importance)));
+
     container.innerHTML = topFeatures.map(f => {
-      const pct = (f.importance * 100).toFixed(1);
-      return `<div class="shap-row">
-        <div class="shap-name">${f.feature}</div>
-        <div class="shap-track"><div class="shap-fill" style="width:${pct}%"></div></div>
-        <div class="shap-pct">${pct}%</div>
+      const absVal   = Math.abs(f.importance);
+      const barWidth = maxVal > 0 ? (absVal / maxVal * 100).toFixed(1) : 0;
+
+      // Positive SHAP = pushed score toward fraud
+      // Negative SHAP = pushed score toward legitimate
+      const isPositive = f.importance >= 0;
+      const barColor   = isPositive ? 'var(--red)'   : 'var(--green)';
+      const direction  = isPositive ? '▲ fraud'      : '▼ safe';
+      const dirColor   = isPositive ? 'var(--red)'   : 'var(--green)';
+      const label      = getFeatureLabel(f.feature);
+
+      return `<div class="shap-row" title="Raw SHAP value: ${f.importance.toFixed(4)} | Feature: ${f.feature}">
+        <div class="shap-name" style="width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.feature}">${label}</div>
+        <div class="shap-track"><div class="shap-fill" style="width:${barWidth}%;background:${barColor}"></div></div>
+        <div style="font-family:var(--mono);font-size:11px;color:${dirColor};width:60px;text-align:right;flex-shrink:0">${direction}</div>
       </div>`;
     }).join('');
+
+    // Legend
+    container.innerHTML += `
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--muted)">
+        <span><span style="color:var(--red)">▲ fraud</span> — pushed score higher</span>
+        <span><span style="color:var(--green)">▼ safe</span> — pushed score lower</span>
+      </div>`;
+
   } catch { }
 }
 
@@ -223,18 +264,18 @@ async function loadStats() {
     const grid = document.getElementById('stats-grid');
 
     const modelDefs = [
-      { key: 'xgboost', label: 'XGBOOST', sub: 'Credit card · 284K rows · 40% weight' },
+      { key: 'xgboost',  label: 'XGBOOST',  sub: 'Credit card · 284K rows · 40% weight' },
       { key: 'lightgbm', label: 'LIGHTGBM', sub: 'Credit card · 284K rows · 30% weight' },
-      { key: 'paysim', label: 'PAYSIM', sub: 'Mobile money · 2.77M rows · 30% weight' }
+      { key: 'paysim',   label: 'PAYSIM',   sub: 'Mobile money · 2.77M rows · 30% weight' }
     ];
 
     grid.innerHTML = modelDefs.map(m => {
-      const stats = models[m.key] || {};
-      const precision = stats.precision ?? 0;
-      const recall = stats.recall ?? 0;
-      const f1 = stats.f1_score ?? 0;
-      const auc = stats.auc_roc ?? 0;
-      const isTopAuc = m.key === 'paysim';
+      const stats     = models[m.key] || {};
+      const precision = stats.precision  ?? 0;
+      const recall    = stats.recall     ?? 0;
+      const f1        = stats.f1_score   ?? 0;
+      const auc       = stats.auc_roc    ?? 0;
+      const isTopAuc  = m.key === 'paysim';
       return `<div class="model-card">
         <div class="model-card-header">
           <div class="model-card-title">${m.label}</div>
@@ -286,15 +327,15 @@ function sendQuick(q) {
 
 async function sendMsg() {
   const input = document.getElementById('chat-input');
-  const btn = document.getElementById('chat-send-btn');
-  const q = input.value.trim();
+  const btn   = document.getElementById('chat-send-btn');
+  const q     = input.value.trim();
   if (!q) return;
 
   const msgs = document.getElementById('chat-messages');
   msgs.innerHTML += `<div class="chat-msg user">${q}</div>`;
   input.value = '';
   input.disabled = true;
-  btn.disabled = true;
+  btn.disabled   = true;
   msgs.scrollTop = msgs.scrollHeight;
 
   const thinkId = 'think-' + Date.now();
@@ -315,7 +356,7 @@ async function sendMsg() {
     msgs.innerHTML += `<div class="chat-msg ai"><div class="ai-label">FRAUDSHIELD AI</div>Sorry, I could not connect to the AI service. Please check that the backend is running.</div>`;
   } finally {
     input.disabled = false;
-    btn.disabled = false;
+    btn.disabled   = false;
     msgs.scrollTop = msgs.scrollHeight;
     input.focus();
   }
@@ -323,4 +364,4 @@ async function sendMsg() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 checkAPI();
-loadDashboard(); 
+loadDashboard();
