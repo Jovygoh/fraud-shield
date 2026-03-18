@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -6,6 +6,7 @@ import joblib
 import shap
 import numpy as np
 from datetime import datetime
+import math
 
 # ── Load all 3 models ──
 xgb_model = joblib.load("model/fraud_model.pkl")
@@ -41,6 +42,25 @@ class Transaction(BaseModel):
 class AgentQuery(BaseModel):
     question: str
 
+# ── Human-readable feature name map ──
+FEATURE_LABELS = {
+    "amount_log":        "transaction amount",
+    "hour":              "time of day",
+    "is_transfer":       "transaction type (transfer)",
+    "balance_mismatch":  "balance mismatch",
+    "orig_balance_diff": "sender balance change",
+    "dest_balance_diff": "receiver balance change",
+}
+
+def get_feature_label(name: str) -> str:
+    if name in FEATURE_LABELS:
+        return FEATURE_LABELS[name]
+    import re
+    m = re.match(r'^V(\d+)$', name, re.IGNORECASE)
+    if m:
+        return f"behavioural signal V{m.group(1)}"
+    return name
+
 # ── Routes ──
 @app.get("/")
 def root():
@@ -50,12 +70,9 @@ def root():
 def predict(transaction: Transaction):
     row = pd.DataFrame([transaction.features])[feature_names]
 
-    # XGBoost + LightGBM scores (credit card features)
     xgb_score = float(xgb_model.predict_proba(row)[0][1])
     lgb_score = float(lgb_model.predict_proba(row)[0][1])
 
-    # PaySim score (ASEAN mobile money features)
-    # Fill missing PaySim features with 0 if not provided
     features_with_defaults = {**transaction.features}
     for col in paysim_feature_names:
         if col not in features_with_defaults:
@@ -63,10 +80,8 @@ def predict(transaction: Transaction):
     paysim_row = pd.DataFrame([features_with_defaults])[paysim_feature_names]
     paysim_score = float(paysim_model.predict_proba(paysim_row)[0][1])
 
-    # Final ensemble — all 3 models vote
     final_score = (xgb_score * 0.4) + (lgb_score * 0.3) + (paysim_score * 0.3)
 
-    # Decision — block if ANY model is highly confident
     if xgb_score >= xgb_threshold or lgb_score >= lgb_threshold or paysim_score >= paysim_threshold:
         decision = "BLOCK"
         color = "red"
@@ -77,7 +92,6 @@ def predict(transaction: Transaction):
         decision = "APPROVE"
         color = "green"
 
-    # Save to history
     record = {
         "id": len(transaction_history) + 1,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -106,21 +120,90 @@ def explain(transaction: Transaction):
     row = pd.DataFrame([transaction.features])[feature_names]
     shap_values = explainer.shap_values(row)
 
-    # Keep signed values — positive = pushes toward fraud, negative = pushes toward safe
     signed = dict(zip(feature_names, shap_values[0]))
-    # Sort by absolute magnitude, keep top 5
     top_features = sorted(signed.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
 
+    top_features_out = [
+        {"feature": f, "importance": round(float(v), 4)}
+        for f, v in top_features
+    ]
+
+    # ── Build context for Groq summary ───────────────────────────────────────
+    amount_rm = round(math.exp(transaction.features.get("amount_log", 0)), 2)
+    hour      = transaction.features.get("hour", None)
+    is_transfer = transaction.features.get("is_transfer", 0)
+
+    # Decide overall decision from features (re-score quickly for context)
+    try:
+        xgb_score   = float(xgb_model.predict_proba(row)[0][1])
+        lgb_score   = float(lgb_model.predict_proba(row)[0][1])
+        final_score = xgb_score * 0.4 + lgb_score * 0.3
+        if xgb_score >= float(xgb_threshold) or lgb_score >= float(lgb_threshold):
+            decision = "BLOCK"
+        elif final_score >= 0.4:
+            decision = "FLAG"
+        else:
+            decision = "APPROVE"
+    except Exception:
+        decision = "FLAG"
+
+    # Build a readable list of the top contributing factors
+    factor_lines = []
+    for f, v in top_features:
+        label     = get_feature_label(f)
+        direction = "increased fraud risk" if v > 0 else "reduced fraud risk"
+        factor_lines.append(f"- {label}: {direction} (SHAP {round(float(v), 4)})")
+    factors_text = "\n".join(factor_lines)
+
+    time_str = f"{int(hour):02d}:00" if hour is not None else "unknown time"
+    tx_type  = "transfer" if is_transfer == 1 else "purchase"
+
+    prompt = f"""You are a fraud analyst writing a brief, plain-English explanation for a bank transaction decision.
+
+Transaction details:
+- Amount: RM {amount_rm}
+- Time: {time_str}
+- Type: {tx_type}
+- Decision: {decision}
+
+Top factors from the AI model (SHAP analysis):
+{factors_text}
+
+Write ONE concise paragraph (2-3 sentences max) explaining why this transaction was {decision.lower()}ed.
+- Use plain English that a bank customer could understand
+- Mention the RM amount and time naturally if relevant
+- Do NOT use technical terms like SHAP, XGBoost, or feature importance
+- Do NOT start with "This transaction" — vary the opening
+- Be direct and specific"""
+
+    summary = ""
+    try:
+        from groq import Groq
+        import os
+        groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=120,
+            temperature=0.4,
+        )
+        summary = response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[explain] Groq summary failed: {e}")
+        # Graceful fallback — build a simple rule-based summary
+        top_label = get_feature_label(top_features[0][0]) if top_features else "unusual activity"
+        summary = (
+            f"The RM {amount_rm} {tx_type} at {time_str} was {decision.lower()}ed "
+            f"primarily due to {top_label}, which significantly raised the fraud risk score."
+        )
+
     return {
-        "top_features": [
-            {"feature": f, "importance": round(float(v), 4)}
-            for f, v in top_features
-        ]
+        "top_features": top_features_out,
+        "summary": summary
     }
 
 @app.get("/history")
 def history():
-    # Return ALL transactions — frontend handles display limit & scrolling
     return {"transactions": transaction_history}
 
 @app.get("/stats")
@@ -185,7 +268,6 @@ def patterns():
     scores = [t["score"] for t in recent]
     avg_score = sum(scores) / len(scores)
 
-    # Card testing pattern — many small transactions before big fraud
     amounts = [t["amount"] for t in recent]
     if len(amounts) >= 3:
         small_then_large = all(amounts[i] < amounts[i+1] for i in range(len(amounts)-1))
@@ -221,6 +303,15 @@ def patterns():
 @app.post("/agent/chat")
 def agent_chat(query: AgentQuery):
     """AI agent endpoint — ask questions in plain English"""
-    from agent import run_agent
-    response = run_agent(query.question)
-    return {"response": response}
+    import traceback
+    try:
+        from agent import run_agent
+        response = run_agent(query.question)
+        return {"response": response}
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[agent/chat ERROR]\n{tb}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Agent error: {str(e)}"
+        )
