@@ -61,7 +61,7 @@ async function loadPatterns() {
       MASS_FRAUD: 'danger'
     };
     banner.className = 'banner ' + (classMap[pattern] || 'normal');
-    text.innerHTML = `Pattern Status: <strong>${pattern}</strong> — ${data.message || data.description || 'System monitoring active'}`;
+    text.innerHTML = `Pattern Status: <strong>${pattern}</strong> — ${data.description || data.message || 'System monitoring active'}`;
   } catch { }
 }
 
@@ -70,17 +70,24 @@ async function loadHistory() {
     const res = await fetch(`${API}/history`);
     const data = await res.json();
     const tbody = document.getElementById('history-table');
+    const countEl = document.getElementById('history-count');
     const transactions = data.transactions || [];
+
     if (transactions.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No transactions yet — run a demo on the Transaction Scorer page</td></tr>';
+      if (countEl) countEl.textContent = '';
       return;
     }
+
+    // Show total count in section label
+    if (countEl) countEl.textContent = `${transactions.length} total`;
+
+    // Render ALL transactions newest first — table container handles scrolling
     tbody.innerHTML = transactions.slice().reverse().map(tx => {
       const score = (tx.score * 100).toFixed(1);
       const barColor = tx.color || (tx.decision === 'BLOCK' ? 'red' : tx.decision === 'FLAG' ? 'yellow' : 'green');
       const badgeClass = { APPROVE: 'badge-green', FLAG: 'badge-yellow', BLOCK: 'badge-red' }[tx.decision] || 'badge-green';
       const scoreColor = { red: 'var(--red)', yellow: 'var(--yellow)', green: 'var(--green)' }[barColor] || 'var(--muted)';
-      // Convert amount_log to RM for display
       const rmAmount = tx.amount ? `RM ${Math.exp(tx.amount).toFixed(2)}` : '—';
       return `<tr>
         <td style="color:var(--muted);font-family:var(--mono)">#${tx.id}</td>
@@ -176,8 +183,10 @@ async function runDemo() {
     document.getElementById('d-mismatch').textContent = mismatch == 1 ? 'YES' : 'NO';
     document.getElementById('d-mismatch').style.color = mismatch == 1 ? 'var(--red)' : 'var(--green)';
 
-    // Step 7: SHAP explanation
-    loadExplain(lastFeatures);
+    // Step 7: SHAP explanation (show loading state while Groq generates summary)
+    const container = document.getElementById('shap-container');
+    container.innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:10px"><span class="spinner"></span> Generating explanation...</div>`;
+    await loadExplain(lastFeatures);
 
   } catch (err) {
     errEl.textContent = 'Error: Could not connect to API. Make sure the backend is running.';
@@ -193,16 +202,16 @@ const featureLabels = {
   'amount_log':        'Amount',
   'hour':              'Time of Day',
   'is_transfer':       'Transfer Type',
-  'balance_mismatch':  'Balance Mismatch',
-  'orig_balance_diff': 'Sender Balance Δ',
-  'dest_balance_diff': 'Receiver Balance Δ',
+  'balance_mismatch':  'Bal. Mismatch',
+  'orig_balance_diff': 'Sender Bal. Δ',
+  'dest_balance_diff': 'Receiver Bal. Δ',
 };
 
 function getFeatureLabel(name) {
   if (featureLabels[name]) return featureLabels[name];
-  // V1–V28 → show as "Behaviour Signal N"
+  // V1–V28 → "Signal N" — short enough to fit without truncation
   const match = name.match(/^V(\d+)$/i);
-  if (match) return `Behaviour Signal ${match[1]}`;
+  if (match) return `Signal ${match[1]}`;
   return name;
 }
 
@@ -217,42 +226,56 @@ async function loadExplain(features) {
     const data = await res.json();
     const container = document.getElementById('shap-container');
     const topFeatures = data.top_features || [];
+    const summary = data.summary || '';
 
     if (topFeatures.length === 0) {
       container.innerHTML = '<div style="color:var(--muted);font-size:12px">No explanation available</div>';
       return;
     }
 
-    // Normalize bar widths to max absolute value → bars always fit 0–100%
+    // ── AI plain English summary ──────────────────────
+    const summaryHtml = summary
+      ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;margin-bottom:14px;line-height:1.6">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:5px;letter-spacing:1px">AI SUMMARY</div>
+          <div style="font-size:13px;color:var(--text)">${summary}</div>
+        </div>`
+      : '';
+
+    // ── Normalize bar widths to max absolute value → bars always 0–100% ──
     const maxVal = Math.max(...topFeatures.map(f => Math.abs(f.importance)));
 
-    container.innerHTML = topFeatures.map(f => {
+    const barsHtml = topFeatures.map(f => {
       const absVal   = Math.abs(f.importance);
       const barWidth = maxVal > 0 ? (absVal / maxVal * 100).toFixed(1) : 0;
 
       // Positive SHAP = pushed score toward fraud
       // Negative SHAP = pushed score toward legitimate
       const isPositive = f.importance >= 0;
-      const barColor   = isPositive ? 'var(--red)'   : 'var(--green)';
-      const direction  = isPositive ? '▲ fraud'      : '▼ safe';
-      const dirColor   = isPositive ? 'var(--red)'   : 'var(--green)';
-      const label      = getFeatureLabel(f.feature);
+      const barColor  = isPositive ? 'var(--red)'  : 'var(--green)';
+      const direction = isPositive ? '▲ fraud'     : '▼ safe';
+      const dirColor  = isPositive ? 'var(--red)'  : 'var(--green)';
+      const label     = getFeatureLabel(f.feature);
 
-      return `<div class="shap-row" title="Raw SHAP value: ${f.importance.toFixed(4)} | Feature: ${f.feature}">
-        <div class="shap-name" style="width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.feature}">${label}</div>
+      return `<div class="shap-row" title="Raw SHAP: ${f.importance.toFixed(4)} | Feature: ${f.feature}">
+        <div class="shap-name" style="width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0" title="${f.feature}">${label}</div>
         <div class="shap-track"><div class="shap-fill" style="width:${barWidth}%;background:${barColor}"></div></div>
         <div style="font-family:var(--mono);font-size:11px;color:${dirColor};width:60px;text-align:right;flex-shrink:0">${direction}</div>
       </div>`;
     }).join('');
 
-    // Legend
-    container.innerHTML += `
+    // ── Legend ────────────────────────────────────────
+    const legendHtml = `
       <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--muted)">
         <span><span style="color:var(--red)">▲ fraud</span> — pushed score higher</span>
         <span><span style="color:var(--green)">▼ safe</span> — pushed score lower</span>
       </div>`;
 
-  } catch { }
+    container.innerHTML = summaryHtml + barsHtml + legendHtml;
+
+  } catch {
+    document.getElementById('shap-container').innerHTML =
+      '<div style="color:var(--muted);font-size:12px">Could not load explanation</div>';
+  }
 }
 
 // ── MODEL PERFORMANCE ─────────────────────────────────────────────────────────
