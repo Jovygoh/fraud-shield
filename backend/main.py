@@ -315,17 +315,90 @@ def stats():
     }
 
 @app.post("/simulate")
-def simulate():
-    """Generate a random fake transaction for demo purposes"""
+def simulate(mode: str = "random"):
+    """Generate a fake transaction for demo purposes.
+    mode: 'random' | 'approve' | 'flag' | 'block'
+    Uses rejection sampling to guarantee the requested decision type.
+    """
     import random
-    fake = {f: round(random.uniform(-3, 3), 4) for f in feature_names if f not in ["hour", "amount_log"]}
-    fake["hour"] = random.randint(0, 23)
-    fake["amount_log"] = round(random.uniform(0, 8), 4)
-    fake["is_transfer"] = random.randint(0, 1)
-    fake["balance_mismatch"] = random.randint(0, 1)
-    fake["orig_balance_diff"] = round(random.uniform(-5000, 5000), 2)
-    fake["dest_balance_diff"] = round(random.uniform(-5000, 5000), 2)
-    return {"features": fake}
+
+    def make_features(bias: str) -> dict:
+        fake = {}
+        if bias == "approve":
+            fake["hour"]              = random.randint(8, 18)
+            fake["amount_log"]        = round(random.uniform(2.0, 5.0), 4)
+            fake["is_transfer"]       = 0
+            fake["balance_mismatch"]  = 0
+            fake["orig_balance_diff"] = round(random.uniform(0, 500), 2)
+            fake["dest_balance_diff"] = round(random.uniform(0, 500), 2)
+            for f in feature_names:
+                if f not in fake:
+                    fake[f] = round(random.uniform(-0.5, 0.5), 4)
+        elif bias == "flag":
+            fake["hour"]              = random.choice([0, 1, 2, 22, 23, random.randint(8, 18)])
+            fake["amount_log"]        = round(random.uniform(5.5, 7.0), 4)
+            fake["is_transfer"]       = random.randint(0, 1)
+            fake["balance_mismatch"]  = random.randint(0, 1)
+            fake["orig_balance_diff"] = round(random.uniform(-2000, 2000), 2)
+            fake["dest_balance_diff"] = round(random.uniform(-2000, 2000), 2)
+            for f in feature_names:
+                if f not in fake:
+                    fake[f] = round(random.uniform(-1.5, 1.5), 4)
+        elif bias == "block":
+            fake["hour"]              = random.choice([0, 1, 2, 3, 23])
+            fake["amount_log"]        = round(random.uniform(7.0, 9.0), 4)
+            fake["is_transfer"]       = 1
+            fake["balance_mismatch"]  = 1
+            fake["orig_balance_diff"] = round(random.uniform(-8000, -1000), 2)
+            fake["dest_balance_diff"] = round(random.uniform(1000, 8000), 2)
+            for f in feature_names:
+                if f not in fake:
+                    fake[f] = round(random.uniform(1.5, 4.0), 4)
+        else:
+            fake["hour"]              = random.randint(0, 23)
+            fake["amount_log"]        = round(random.uniform(0, 8), 4)
+            fake["is_transfer"]       = random.randint(0, 1)
+            fake["balance_mismatch"]  = random.randint(0, 1)
+            fake["orig_balance_diff"] = round(random.uniform(-5000, 5000), 2)
+            fake["dest_balance_diff"] = round(random.uniform(-5000, 5000), 2)
+            for f in feature_names:
+                if f not in fake:
+                    fake[f] = round(random.uniform(-3, 3), 4)
+        return fake
+
+    def score_features(features: dict) -> str:
+        try:
+            row   = pd.DataFrame([features])[feature_names]
+            xgb_s = float(xgb_model.predict_proba(row)[0][1])
+            lgb_s = float(lgb_model.predict_proba(row)[0][1])
+            fd    = {**features}
+            for col in paysim_feature_names:
+                if col not in fd:
+                    fd[col] = 0
+            paysim_row = pd.DataFrame([fd])[paysim_feature_names]
+            pay_s  = float(paysim_model.predict_proba(paysim_row)[0][1])
+            final  = (xgb_s * 0.4) + (lgb_s * 0.3) + (pay_s * 0.3)
+            if xgb_s >= float(xgb_threshold) or lgb_s >= float(lgb_threshold) or pay_s >= float(paysim_threshold):
+                return "BLOCK"
+            elif final >= 0.4:
+                return "FLAG"
+            else:
+                return "APPROVE"
+        except Exception:
+            return "UNKNOWN"
+
+    target = mode.upper() if mode != "random" else None
+
+    # Rejection sampling — try up to 40 times to hit the target decision
+    fake = make_features(mode if mode != "random" else "random")
+    for _ in range(40):
+        fake     = make_features(mode if mode != "random" else "random")
+        decision = score_features(fake)
+        if target is None or decision == target:
+            return {"features": fake, "expected_decision": decision}
+
+    # Fallback: return last attempt even if it didn't match
+    return {"features": fake, "expected_decision": score_features(fake)}
 
 @app.get("/patterns")
 def patterns():
