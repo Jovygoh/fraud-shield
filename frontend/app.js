@@ -107,15 +107,17 @@ async function loadHistory() {
 // ── TRANSACTION SCORER ────────────────────────────────────────────────────────
 let lastFeatures = null;
 
-async function runDemo() {
-  const btn = document.getElementById('demo-btn');
+async function runDemo(mode = 'random') {
+  // Disable all demo buttons while running
+  document.querySelectorAll('.demo-btn').forEach(b => b.disabled = true);
+  const activeBtn = document.getElementById('demo-btn-' + mode);
+  if (activeBtn) activeBtn.innerHTML = '<span class="spinner"></span> SCORING...';
+
   const errEl = document.getElementById('scorer-error');
   errEl.style.display = 'none';
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> SCORING TRANSACTION...';
 
   try {
-    const simRes = await fetch(`${API}/simulate`, { method: 'POST' });
+    const simRes = await fetch(`${API}/simulate?mode=${mode}`, { method: 'POST' });
     if (!simRes.ok) throw new Error('Simulate failed');
     const simData = await simRes.json();
     lastFeatures = simData.features;
@@ -181,8 +183,11 @@ async function runDemo() {
     errEl.textContent = 'Error: Could not connect to API. Make sure the backend is running.';
     errEl.style.display = 'block';
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = '▶  RUN DEMO TRANSACTION';
+    document.querySelectorAll('.demo-btn').forEach(b => b.disabled = false);
+    document.getElementById('demo-btn-random').innerHTML  = '🎲 RANDOM';
+    document.getElementById('demo-btn-approve').innerHTML = '✅ APPROVE';
+    document.getElementById('demo-btn-flag').innerHTML    = '⚠️ FLAG';
+    document.getElementById('demo-btn-block').innerHTML   = '🚨 BLOCK';
   }
 }
 
@@ -221,10 +226,19 @@ async function loadExplain(features) {
       return;
     }
 
+    // Format multi-paragraph AI analysis
+    const formattedSummary = summary
+      .replace(/\n\n/g, '</p><p style="margin-top:8px">')
+      .replace(/\n/g, '<br>');
+
     const summaryHtml = summary
-      ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;margin-bottom:14px;line-height:1.6">
-          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:5px;letter-spacing:1px">AI SUMMARY</div>
-          <div style="font-size:13px;color:var(--text)">${summary}</div>
+      ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:8px;letter-spacing:1.5px;display:flex;align-items:center;gap:6px">
+            <span>🤖</span> AI ANALYSIS
+          </div>
+          <div style="font-size:13px;color:var(--text);line-height:1.7">
+            <p>${formattedSummary}</p>
+          </div>
         </div>`
       : '';
 
