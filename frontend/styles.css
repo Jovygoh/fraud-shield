@@ -247,35 +247,15 @@ body {
 }
 
 /* ── TABLE ───────────────────────────────────── */
-.table-scroll-container {
-  width: 100%;
-  max-height: 520px;        /* shows ~20 rows, scroll for the rest */
-  overflow-y: auto;
-  overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  /* custom scrollbar */
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent) var(--bg3);
-}
- 
-.table-scroll-container::-webkit-scrollbar { width: 6px; height: 6px; }
-.table-scroll-container::-webkit-scrollbar-track { background: var(--bg3); border-radius: 3px; }
-.table-scroll-container::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
-.table-scroll-container::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
- 
-.table-scroll-container table {
+.table-wrap { overflow-x: auto; }
+
+table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
- 
-/* Sticky header inside scroll container */
-.table-scroll-container thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--bg3);
+
+th {
   text-align: left;
   padding: 10px 14px;
   font-size: 11px;
@@ -283,17 +263,17 @@ body {
   letter-spacing: 1px;
   color: var(--muted);
   text-transform: uppercase;
-  border-bottom: 1px solid var(--border2);
+  border-bottom: 1px solid var(--border);
 }
- 
-.table-scroll-container td {
+
+td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--text);
 }
- 
-.table-scroll-container tr:last-child td { border-bottom: none; }
-.table-scroll-container tr:hover td { background: rgba(255,255,255,0.02); }
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
 .badge {
   display: inline-flex;
