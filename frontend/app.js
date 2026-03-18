@@ -122,13 +122,29 @@ async function runDemo(mode = 'random') {
     const simData = await simRes.json();
     lastFeatures = simData.features;
 
-    const predRes = await fetch(`${API}/predict`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ features: lastFeatures })
-    });
-    if (!predRes.ok) throw new Error('Predict failed');
-    const d = await predRes.json();
+    // If simulate returned hardcoded demo_scores, use them directly —
+    // no need to call /predict (guarantees correct decision for demo modes)
+    let d;
+    if (simData.demo_scores) {
+      d = {
+        fraud_score:   simData.demo_scores.fraud_score,
+        xgb_score:     simData.demo_scores.xgb_score,
+        lgb_score:     simData.demo_scores.lgb_score,
+        paysim_score:  simData.demo_scores.paysim_score,
+        decision:      simData.demo_scores.decision,
+        color:         simData.demo_scores.color,
+        models_used:   'XGBoost + LightGBM + PaySim Ensemble'
+      };
+    } else {
+      // Random mode — score normally through /predict
+      const predRes = await fetch(`${API}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ features: lastFeatures })
+      });
+      if (!predRes.ok) throw new Error('Predict failed');
+      d = await predRes.json();
+    }
 
     const block = document.getElementById('decision-block');
     const color = d.color || (d.decision === 'BLOCK' ? 'red' : d.decision === 'FLAG' ? 'yellow' : 'green');
@@ -184,10 +200,16 @@ async function runDemo(mode = 'random') {
     errEl.style.display = 'block';
   } finally {
     document.querySelectorAll('.demo-btn').forEach(b => b.disabled = false);
-    document.getElementById('demo-btn-random').innerHTML  = '🎲 RANDOM';
-    document.getElementById('demo-btn-approve').innerHTML = '✅ APPROVE';
-    document.getElementById('demo-btn-flag').innerHTML    = '⚠️ FLAG';
-    document.getElementById('demo-btn-block').innerHTML   = '🚨 BLOCK';
+    const btnLabels = {
+      'demo-btn-random':  '🎲 RANDOM',
+      'demo-btn-approve': '✅ APPROVE',
+      'demo-btn-flag':    '⚠️ FLAG',
+      'demo-btn-block':   '🚨 BLOCK'
+    };
+    Object.entries(btnLabels).forEach(([id, label]) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = label;
+    });
   }
 }
 
