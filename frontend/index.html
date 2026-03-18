@@ -8,6 +8,16 @@
   <link rel="icon"
     href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ── Custom scrollbar — all scrollable containers ── */
+    ::-webkit-scrollbar       { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #33ddff; }
+
+    /* Firefox */
+    * { scrollbar-width: thin; scrollbar-color: var(--accent) rgba(255,255,255,0.04); }
+  </style>
 </head>
 
 <body>
@@ -96,18 +106,18 @@
         </div>
       </div>
 
-     <div class="card">
-  <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
-    Recent Transactions
-    <span id="history-count" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0"></span>
-  </div>
-  <div class="table-wrap" style="max-height:400px;overflow-y:auto">
-    <table>
+      <div class="card">
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+          Recent Transactions
+          <span id="history-count" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0"></span>
+        </div>
+        <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+          <table>
             <thead>
               <tr>
                 <th>#</th>
                 <th>Time</th>
-                <th>Amount (log)</th>
+                <th>Amount</th>
                 <th>Fraud Score</th>
                 <th>Decision</th>
               </tr>
@@ -130,13 +140,28 @@
     <div class="page-inner">
       <div class="page-title">Transaction Scorer</div>
       <div class="error-msg" id="scorer-error"></div>
+
+      <!-- ── Demo mode buttons ── -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+        <button class="demo-btn" id="demo-btn-random"  onclick="runDemo('random')"  title="Generate a random transaction">
+          🎲 RANDOM
+        </button>
+        <button class="demo-btn approve-btn" id="demo-btn-approve" onclick="runDemo('approve')" title="Guarantee an approved transaction">
+          ✅ APPROVE
+        </button>
+        <button class="demo-btn flag-btn"    id="demo-btn-flag"    onclick="runDemo('flag')"    title="Guarantee a flagged transaction">
+          ⚠️ FLAG
+        </button>
+        <button class="demo-btn block-btn"   id="demo-btn-block"   onclick="runDemo('block')"   title="Guarantee a blocked transaction">
+          🚨 BLOCK
+        </button>
+      </div>
+
       <div class="grid-2">
         <div>
-          <button class="demo-btn" id="demo-btn" onclick="runDemo()">▶ RUN DEMO TRANSACTION</button>
-
           <div class="decision-block idle" id="decision-block">
             <div class="decision-word" id="decision-word">—</div>
-            <div class="decision-sub" id="decision-sub">Click the button above to score a transaction</div>
+            <div class="decision-sub" id="decision-sub">Choose a demo mode above to score a transaction</div>
           </div>
 
           <div class="card gauge-wrap">
@@ -239,12 +264,10 @@
             </div>
           </div>
           <div class="quick-btns">
-            <div class="quick-btn" onclick="sendQuick('How is the system performing?')">How is the system performing?
-            </div>
+            <div class="quick-btn" onclick="sendQuick('How is the system performing?')">How is the system performing?</div>
             <div class="quick-btn" onclick="sendQuick('How many transactions were blocked?')">How many blocked?</div>
             <div class="quick-btn" onclick="sendQuick('What fraud patterns are detected?')">Fraud patterns?</div>
-            <div class="quick-btn" onclick="sendQuick('Is the fraud detection working well?')">Is detection working
-              well?</div>
+            <div class="quick-btn" onclick="sendQuick('Is the fraud detection working well?')">Is detection working well?</div>
           </div>
           <div class="chat-input-row">
             <input class="chat-input" id="chat-input" placeholder="Ask anything about fraud detection..."
@@ -256,7 +279,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=8"></script>
 </body>
 
 </html>
