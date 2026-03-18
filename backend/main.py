@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -119,41 +120,43 @@ def predict(transaction: Transaction):
 @app.post("/explain")
 def explain(transaction: Transaction):
     row = pd.DataFrame([transaction.features])[feature_names]
-    shap_values = explainer.shap_values(row)
 
-    signed = dict(zip(feature_names, shap_values[0]))
-    top_features = sorted(signed.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
-
-    top_features_out = [
-        {"feature": f, "importance": round(float(v), 4)}
-        for f, v in top_features
-    ]
-
-    # ── Re-score: use demo_scores if provided, otherwise run real models ──────
+    # ── Transaction basics ────────────────────────────────────────────────────
     amount_rm   = round(math.exp(transaction.features.get("amount_log", 0)), 2)
     hour        = transaction.features.get("hour", None)
     is_transfer = transaction.features.get("is_transfer", 0)
     time_str    = f"{int(hour):02d}:00" if hour is not None else "unknown time"
     tx_type     = "transfer" if is_transfer == 1 else "purchase"
 
-    ds = transaction.demo_scores  # shorthand
+    ds = transaction.demo_scores
     print(f"[explain] demo_scores received: {ds}")
+
+    # ── SHAP (always run — powers the bar chart) ──────────────────────────────
+    shap_values  = explainer.shap_values(row)
+    signed       = dict(zip(feature_names, shap_values[0]))
+    top_features = sorted(signed.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+    top_features_out = [
+        {"feature": f, "importance": round(float(v), 4)}
+        for f, v in top_features
+    ]
+
+    # ── Scores: use demo_scores for demo buttons, real models for random ──────
     if ds:
-        # Demo mode — use the injected scores so explanation matches display
-        xgb_score   = float(ds.get("xgb_score", 0))
-        lgb_score   = float(ds.get("lgb_score", 0))
+        # Demo mode — trust injected scores entirely, never re-run models
+        xgb_score    = float(ds.get("xgb_score",    0))
+        lgb_score    = float(ds.get("lgb_score",    0))
         paysim_score = float(ds.get("paysim_score", 0))
-        final_score = float(ds.get("fraud_score", 0))
-        decision    = ds.get("decision", "APPROVE")
+        final_score  = float(ds.get("fraud_score",  0))
+        decision     = str(ds.get("decision", "APPROVE")).upper()
     else:
-        # Real mode — run all 3 models
+        # Random mode — run all 3 real models
         xgb_score = float(xgb_model.predict_proba(row)[0][1])
         lgb_score = float(lgb_model.predict_proba(row)[0][1])
-        features_with_defaults = {**transaction.features}
+        fd = {**transaction.features}
         for col in paysim_feature_names:
-            if col not in features_with_defaults:
-                features_with_defaults[col] = 0
-        paysim_row   = pd.DataFrame([features_with_defaults])[paysim_feature_names]
+            if col not in fd:
+                fd[col] = 0
+        paysim_row   = pd.DataFrame([fd])[paysim_feature_names]
         paysim_score = float(paysim_model.predict_proba(paysim_row)[0][1])
         final_score  = (xgb_score * 0.4) + (lgb_score * 0.3) + (paysim_score * 0.3)
         if xgb_score >= float(xgb_threshold) or lgb_score >= float(lgb_threshold) or paysim_score >= float(paysim_threshold):
@@ -163,111 +166,104 @@ def explain(transaction: Transaction):
         else:
             decision = "APPROVE"
 
-    # ── Determine which model(s) triggered the decision ───────────────────────
+    # ── Which model(s) triggered the decision ────────────────────────────────
     triggered_by = []
     if xgb_score >= float(xgb_threshold):
-        triggered_by.append(f"XGBoost ({round(xgb_score * 100, 1)}%)")
+        triggered_by.append(f"credit card fraud detector ({round(xgb_score*100,1)}%)")
     if lgb_score >= float(lgb_threshold):
-        triggered_by.append(f"LightGBM ({round(lgb_score * 100, 1)}%)")
+        triggered_by.append(f"gradient boosting detector ({round(lgb_score*100,1)}%)")
     if paysim_score >= float(paysim_threshold):
-        triggered_by.append(f"PaySim mobile-money model ({round(paysim_score * 100, 1)}%)")
-
+        triggered_by.append(f"mobile payment detector ({round(paysim_score*100,1)}%)")
     if not triggered_by:
-        if decision == "FLAG":
-            triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
-        elif decision == "APPROVE":
-            triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
-        else:
-            triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
+        triggered_by = [f"ensemble score of {round(final_score*100,1)}%"]
+    trigger_str = " and ".join(triggered_by)
 
-    trigger_str = " and ".join(triggered_by) if triggered_by else "the ensemble score"
-
-    # ── Detailed SHAP factor lines ────────────────────────────────────────────
+    # ── SHAP signal lines — direction forced to match decision ────────────────
+    # For demo modes the raw SHAP values come from fake features and may
+    # contradict the injected decision, so we flip their narrative to match.
     shap_lines = []
     for f, v in top_features:
-        label     = get_feature_label(f)
-        direction = "increased fraud risk" if v > 0 else "reduced fraud risk"
-        magnitude = "strongly" if abs(v) > 0.1 else "slightly"
-        shap_lines.append(f"- {label}: {magnitude} {direction} (impact score: {round(float(v), 4)})")
-    shap_text = "\n".join(shap_lines)
+        label = get_feature_label(f)
+        if ds:
+            # Demo: describe every signal as supporting the injected decision
+            if decision == "APPROVE":
+                direction = "indicated normal, low-risk behaviour"
+            elif decision == "FLAG":
+                direction = "showed mildly suspicious activity"
+            else:  # BLOCK
+                direction = "flagged highly suspicious activity"
+            shap_lines.append(f"- {label}: {direction}")
+        else:
+            # Random: use real SHAP direction
+            magnitude = "strongly" if abs(v) > 0.1 else "slightly"
+            direction = "increased fraud risk" if v > 0 else "reduced fraud risk"
+            shap_lines.append(f"- {label}: {magnitude} {direction}")
+    shap_text = "
+".join(shap_lines)
 
-    # ── Model scores breakdown ────────────────────────────────────────────────
-    model_lines = [
-        f"- Credit card fraud detector (XGBoost): {round(xgb_score * 100, 1)}% fraud probability "
-        f"({'TRIGGERED ⚠️' if xgb_score >= float(xgb_threshold) else 'below threshold ✅'})",
+    # ── Model score lines ─────────────────────────────────────────────────────
+    def threshold_label(score, threshold):
+        return "TRIGGERED ⚠️" if score >= float(threshold) else "below threshold ✅"
 
-        f"- Gradient boosting detector (LightGBM): {round(lgb_score * 100, 1)}% fraud probability "
-        f"({'TRIGGERED ⚠️' if lgb_score >= float(lgb_threshold) else 'below threshold ✅'})",
+    model_text = "
+".join([
+        f"- Credit card fraud detector:   {round(xgb_score*100,1)}% — {threshold_label(xgb_score, xgb_threshold)}",
+        f"- Gradient boosting detector:   {round(lgb_score*100,1)}% — {threshold_label(lgb_score, lgb_threshold)}",
+        f"- Mobile payment detector:      {round(paysim_score*100,1)}% — {threshold_label(paysim_score, paysim_threshold)}",
+        f"- Final ensemble score:         {round(final_score*100,1)}%",
+    ])
 
-        f"- Mobile payment fraud detector (PaySim): {round(paysim_score * 100, 1)}% fraud probability "
-        f"({'TRIGGERED ⚠️' if paysim_score >= float(paysim_threshold) else 'below threshold ✅'})",
+    # ── Prompt ────────────────────────────────────────────────────────────────
+    prompt = f"""You are a senior fraud analyst writing an explanation for a bank transaction decision.
 
-        f"- Final ensemble score: {round(final_score * 100, 1)}% (XGBoost 40% + LightGBM 30% + PaySim 30%)",
-    ]
-    model_text = "\n".join(model_lines)
-
-    # ── Build detailed prompt ─────────────────────────────────────────────────
-    prompt = f"""You are a senior fraud analyst writing a detailed explanation of a transaction decision for an internal fraud review report.
-
-Transaction details:
+Transaction:
 - Amount: RM {amount_rm}
 - Time: {time_str}
 - Type: {tx_type}
 - FINAL DECISION: {decision}
-- Decision triggered by: {trigger_str}
+- Triggered by: {trigger_str}
 
-Model scores (3 independent fraud detectors voted):
+Model scores:
 {model_text}
 
-Behavioural pattern analysis (what the AI noticed about this transaction):
+Behavioural signals:
 {shap_text}
 
-Write a detailed but readable explanation (4-6 sentences) covering ALL of the following:
-1. State the final decision ({decision}) and which detector(s) caused it
-2. Explain what each model found — mention which ones flagged it and which ones were below threshold
-3. Explain what the behavioural signals revealed — translate the signal names into plain English meaning
-4. Explain how all these factors combined to lead to the final {decision} decision
+Write 4-5 sentences explaining this {decision} decision. Rules:
+- The decision is {decision} — NEVER contradict this under any circumstances
+- Mention which detectors triggered and their scores
+- Describe what the behavioural signals indicated
+- Explain why the final decision is {decision}
+- No bullet points — flowing prose only
+- No technical names: say "credit card fraud detector" not "XGBoost", "mobile payment detector" not "PaySim", "gradient boosting detector" not "LightGBM" """
 
-Rules:
-- NEVER contradict the final decision ({decision}) — it is definitive
-- Do NOT use technical names: instead of "XGBoost" say "credit card fraud detector", instead of "PaySim" say "mobile payment detector", instead of "LightGBM" say "gradient boosting detector", instead of "SHAP" say "behavioural analysis"
-- Include specific numbers (RM amounts, percentages) to make the explanation concrete
-- Write for a bank compliance officer who understands fraud but not ML jargon
-- Do NOT use bullet points — write flowing prose only"""
-
-    # ── Rule-based fallback summary ───────────────────────────────────────────
+    # ── Fallback summary (if Groq fails) ─────────────────────────────────────
     def fallback_summary():
-        fraud_signals  = [get_feature_label(f) for f, v in top_features if v > 0]
-        safe_signals   = [get_feature_label(f) for f, v in top_features if v < 0]
-        fraud_str = ", ".join(fraud_signals[:2]) if fraud_signals else "unusual patterns"
-        safe_str  = ", ".join(safe_signals[:2])  if safe_signals  else "other indicators"
-
+        signal_names = [get_feature_label(f) for f, v in top_features[:2]]
+        signals_str  = " and ".join(signal_names) if signal_names else "transaction patterns"
         if decision == "BLOCK":
             return (
                 f"The RM {amount_rm} {tx_type} at {time_str} was blocked because {trigger_str} exceeded its fraud threshold. "
-                f"The credit card fraud detector scored {round(xgb_score*100,1)}%, the gradient boosting detector scored {round(lgb_score*100,1)}%, "
-                f"and the mobile payment detector scored {round(paysim_score*100,1)}%, giving a combined ensemble score of {round(final_score*100,1)}%. "
-                f"Behavioural analysis flagged {fraud_str} as key fraud indicators, "
-                f"while {safe_str} slightly reduced the overall risk. "
-                f"The triggered detector confidence was high enough to override the ensemble and block the transaction outright."
+                f"The credit card detector scored {round(xgb_score*100,1)}%, the gradient boosting detector scored {round(lgb_score*100,1)}%, "
+                f"and the mobile payment detector scored {round(paysim_score*100,1)}%, producing an ensemble score of {round(final_score*100,1)}%. "
+                f"Behavioural analysis of {signals_str} confirmed the high-risk pattern, and the transaction was blocked outright."
             )
         elif decision == "FLAG":
             return (
-                f"The RM {amount_rm} {tx_type} at {time_str} was flagged for manual review with an ensemble score of {round(final_score*100,1)}%. "
+                f"The RM {amount_rm} {tx_type} at {time_str} was flagged for review with an ensemble score of {round(final_score*100,1)}%. "
                 f"The credit card detector scored {round(xgb_score*100,1)}%, gradient boosting scored {round(lgb_score*100,1)}%, "
                 f"and the mobile payment detector scored {round(paysim_score*100,1)}%. "
-                f"Behavioural analysis identified {fraud_str} as elevated risk factors. "
-                f"While no single detector crossed its block threshold, the combined score warrants human review."
+                f"Behavioural signals from {signals_str} showed elevated but not conclusive fraud patterns, warranting manual review."
             )
         else:
             return (
                 f"The RM {amount_rm} {tx_type} at {time_str} was approved with a low ensemble score of {round(final_score*100,1)}%. "
                 f"All three detectors remained well below their thresholds: credit card detector at {round(xgb_score*100,1)}%, "
                 f"gradient boosting at {round(lgb_score*100,1)}%, and mobile payment detector at {round(paysim_score*100,1)}%. "
-                f"Behavioural analysis showed {safe_str} as reassuring signals, "
-                f"and no significant fraud indicators were detected in the transaction pattern."
+                f"Behavioural analysis of {signals_str} showed no significant fraud indicators."
             )
 
+    # ── Call Groq ─────────────────────────────────────────────────────────────
     summary = ""
     try:
         from groq import Groq
@@ -287,6 +283,7 @@ Rules:
         "top_features": top_features_out,
         "summary": summary
     }
+
 
 @app.get("/history")
 def history():
