@@ -137,6 +137,7 @@ def explain(transaction: Transaction):
     tx_type     = "transfer" if is_transfer == 1 else "purchase"
 
     ds = transaction.demo_scores  # shorthand
+    print(f"[explain] demo_scores received: {ds}")
     if ds:
         # Demo mode — use the injected scores so explanation matches display
         xgb_score   = float(ds.get("xgb_score", 0))
