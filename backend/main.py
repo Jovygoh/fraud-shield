@@ -128,74 +128,145 @@ def explain(transaction: Transaction):
         for f, v in top_features
     ]
 
-    # ── Build context for Groq summary ───────────────────────────────────────
-    amount_rm = round(math.exp(transaction.features.get("amount_log", 0)), 2)
-    hour      = transaction.features.get("hour", None)
+    # ── Re-score with ALL 3 models (same logic as /predict) ──────────────────
+    amount_rm   = round(math.exp(transaction.features.get("amount_log", 0)), 2)
+    hour        = transaction.features.get("hour", None)
     is_transfer = transaction.features.get("is_transfer", 0)
+    time_str    = f"{int(hour):02d}:00" if hour is not None else "unknown time"
+    tx_type     = "transfer" if is_transfer == 1 else "purchase"
 
-    # Decide overall decision from features (re-score quickly for context)
-    try:
-        xgb_score   = float(xgb_model.predict_proba(row)[0][1])
-        lgb_score   = float(lgb_model.predict_proba(row)[0][1])
-        final_score = xgb_score * 0.4 + lgb_score * 0.3
-        if xgb_score >= float(xgb_threshold) or lgb_score >= float(lgb_threshold):
-            decision = "BLOCK"
-        elif final_score >= 0.4:
-            decision = "FLAG"
-        else:
-            decision = "APPROVE"
-    except Exception:
+    xgb_score = float(xgb_model.predict_proba(row)[0][1])
+    lgb_score = float(lgb_model.predict_proba(row)[0][1])
+
+    features_with_defaults = {**transaction.features}
+    for col in paysim_feature_names:
+        if col not in features_with_defaults:
+            features_with_defaults[col] = 0
+    paysim_row   = pd.DataFrame([features_with_defaults])[paysim_feature_names]
+    paysim_score = float(paysim_model.predict_proba(paysim_row)[0][1])
+
+    final_score = (xgb_score * 0.4) + (lgb_score * 0.3) + (paysim_score * 0.3)
+
+    # ── Determine decision + which model(s) triggered it ─────────────────────
+    triggered_by = []
+    if xgb_score >= float(xgb_threshold):
+        triggered_by.append(f"XGBoost ({round(xgb_score * 100, 1)}%)")
+    if lgb_score >= float(lgb_threshold):
+        triggered_by.append(f"LightGBM ({round(lgb_score * 100, 1)}%)")
+    if paysim_score >= float(paysim_threshold):
+        triggered_by.append(f"PaySim mobile-money model ({round(paysim_score * 100, 1)}%)")
+
+    if triggered_by:
+        decision = "BLOCK"
+    elif final_score >= 0.4:
         decision = "FLAG"
+        triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
+    else:
+        decision = "APPROVE"
+        triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
 
-    # Build a readable list of the top contributing factors
-    factor_lines = []
+    trigger_str = " and ".join(triggered_by) if triggered_by else "the ensemble score"
+
+    # ── Detailed SHAP factor lines ────────────────────────────────────────────
+    shap_lines = []
     for f, v in top_features:
         label     = get_feature_label(f)
         direction = "increased fraud risk" if v > 0 else "reduced fraud risk"
-        factor_lines.append(f"- {label}: {direction} (SHAP {round(float(v), 4)})")
-    factors_text = "\n".join(factor_lines)
+        magnitude = "strongly" if abs(v) > 0.1 else "slightly"
+        shap_lines.append(f"- {label}: {magnitude} {direction} (impact score: {round(float(v), 4)})")
+    shap_text = "\n".join(shap_lines)
 
-    time_str = f"{int(hour):02d}:00" if hour is not None else "unknown time"
-    tx_type  = "transfer" if is_transfer == 1 else "purchase"
+    # ── Model scores breakdown ────────────────────────────────────────────────
+    model_lines = [
+        f"- Credit card fraud detector (XGBoost): {round(xgb_score * 100, 1)}% fraud probability "
+        f"({'TRIGGERED ⚠️' if xgb_score >= float(xgb_threshold) else 'below threshold ✅'})",
 
-    prompt = f"""You are a fraud analyst writing a brief, plain-English explanation for a bank transaction decision.
+        f"- Gradient boosting detector (LightGBM): {round(lgb_score * 100, 1)}% fraud probability "
+        f"({'TRIGGERED ⚠️' if lgb_score >= float(lgb_threshold) else 'below threshold ✅'})",
+
+        f"- Mobile payment fraud detector (PaySim): {round(paysim_score * 100, 1)}% fraud probability "
+        f"({'TRIGGERED ⚠️' if paysim_score >= float(paysim_threshold) else 'below threshold ✅'})",
+
+        f"- Final ensemble score: {round(final_score * 100, 1)}% (XGBoost 40% + LightGBM 30% + PaySim 30%)",
+    ]
+    model_text = "\n".join(model_lines)
+
+    # ── Build detailed prompt ─────────────────────────────────────────────────
+    prompt = f"""You are a senior fraud analyst writing a detailed explanation of a transaction decision for an internal fraud review report.
 
 Transaction details:
 - Amount: RM {amount_rm}
 - Time: {time_str}
 - Type: {tx_type}
-- Decision: {decision}
+- FINAL DECISION: {decision}
+- Decision triggered by: {trigger_str}
 
-Top factors from the AI model (SHAP analysis):
-{factors_text}
+Model scores (3 independent fraud detectors voted):
+{model_text}
 
-Write ONE concise paragraph (2-3 sentences max) explaining why this transaction was {decision.lower()}ed.
-- Use plain English that a bank customer could understand
-- Mention the RM amount and time naturally if relevant
-- Do NOT use technical terms like SHAP, XGBoost, or feature importance
-- Do NOT start with "This transaction" — vary the opening
-- Be direct and specific"""
+Behavioural pattern analysis (what the AI noticed about this transaction):
+{shap_text}
+
+Write a detailed but readable explanation (4-6 sentences) covering ALL of the following:
+1. State the final decision ({decision}) and which detector(s) caused it
+2. Explain what each model found — mention which ones flagged it and which ones were below threshold
+3. Explain what the behavioural signals revealed — translate the signal names into plain English meaning
+4. Explain how all these factors combined to lead to the final {decision} decision
+
+Rules:
+- NEVER contradict the final decision ({decision}) — it is definitive
+- Do NOT use technical names: instead of "XGBoost" say "credit card fraud detector", instead of "PaySim" say "mobile payment detector", instead of "LightGBM" say "gradient boosting detector", instead of "SHAP" say "behavioural analysis"
+- Include specific numbers (RM amounts, percentages) to make the explanation concrete
+- Write for a bank compliance officer who understands fraud but not ML jargon
+- Do NOT use bullet points — write flowing prose only"""
+
+    # ── Rule-based fallback summary ───────────────────────────────────────────
+    def fallback_summary():
+        fraud_signals  = [get_feature_label(f) for f, v in top_features if v > 0]
+        safe_signals   = [get_feature_label(f) for f, v in top_features if v < 0]
+        fraud_str = ", ".join(fraud_signals[:2]) if fraud_signals else "unusual patterns"
+        safe_str  = ", ".join(safe_signals[:2])  if safe_signals  else "other indicators"
+
+        if decision == "BLOCK":
+            return (
+                f"The RM {amount_rm} {tx_type} at {time_str} was blocked because {trigger_str} exceeded its fraud threshold. "
+                f"The credit card fraud detector scored {round(xgb_score*100,1)}%, the gradient boosting detector scored {round(lgb_score*100,1)}%, "
+                f"and the mobile payment detector scored {round(paysim_score*100,1)}%, giving a combined ensemble score of {round(final_score*100,1)}%. "
+                f"Behavioural analysis flagged {fraud_str} as key fraud indicators, "
+                f"while {safe_str} slightly reduced the overall risk. "
+                f"The triggered detector confidence was high enough to override the ensemble and block the transaction outright."
+            )
+        elif decision == "FLAG":
+            return (
+                f"The RM {amount_rm} {tx_type} at {time_str} was flagged for manual review with an ensemble score of {round(final_score*100,1)}%. "
+                f"The credit card detector scored {round(xgb_score*100,1)}%, gradient boosting scored {round(lgb_score*100,1)}%, "
+                f"and the mobile payment detector scored {round(paysim_score*100,1)}%. "
+                f"Behavioural analysis identified {fraud_str} as elevated risk factors. "
+                f"While no single detector crossed its block threshold, the combined score warrants human review."
+            )
+        else:
+            return (
+                f"The RM {amount_rm} {tx_type} at {time_str} was approved with a low ensemble score of {round(final_score*100,1)}%. "
+                f"All three detectors remained well below their thresholds: credit card detector at {round(xgb_score*100,1)}%, "
+                f"gradient boosting at {round(lgb_score*100,1)}%, and mobile payment detector at {round(paysim_score*100,1)}%. "
+                f"Behavioural analysis showed {safe_str} as reassuring signals, "
+                f"and no significant fraud indicators were detected in the transaction pattern."
+            )
 
     summary = ""
     try:
         from groq import Groq
-        import os
         groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",   # small model — saves ~3x tokens
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=80,                  # summaries don't need more than 80 tokens
-            temperature=0.4,
+            max_tokens=250,
+            temperature=0.3,
         )
         summary = response.choices[0].message.content.strip()
     except Exception as e:
         print(f"[explain] Groq summary failed: {e}")
-        # Graceful fallback — build a simple rule-based summary
-        top_label = get_feature_label(top_features[0][0]) if top_features else "unusual activity"
-        summary = (
-            f"The RM {amount_rm} {tx_type} at {time_str} was {decision.lower()}ed "
-            f"primarily due to {top_label}, which significantly raised the fraud risk score."
-        )
+        summary = fallback_summary()
 
     return {
         "top_features": top_features_out,
