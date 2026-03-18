@@ -1,4 +1,4 @@
-from groq import Groq
+from groq import Groq, RateLimitError, BadRequestError
 import json
 import os
 import requests
@@ -11,16 +11,16 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 API_URL = "https://fraud-shield-production-d3a8.up.railway.app"
 
-# ── Small fast model to conserve daily token quota ────────────────────────────
-# llama-3.1-8b-instant uses ~3-4x fewer tokens than llama-3.3-70b-versatile
-CHAT_MODEL = "llama-3.1-8b-instant"
+# llama-3.1-8b-instant is too small for reliable tool calling — use 70b for that.
+# We save tokens via a tighter system prompt and lower max_tokens instead.
+CHAT_MODEL = "llama-3.3-70b-versatile"
 
 tools = [
     {
         "type": "function",
         "function": {
             "name": "get_model_stats",
-            "description": "Get model performance statistics including precision, recall and AUC-ROC",
+            "description": "Get model performance stats: precision, recall, AUC-ROC.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -28,20 +28,25 @@ tools = [
         "type": "function",
         "function": {
             "name": "get_transactions",
-            "description": """Fetch and filter transactions. Use for listing/showing transactions only.
-            Do NOT use for counting — use analyze_trends for counts and summaries.
-            Params: limit (only if user says a specific number), decision_filter (APPROVE/FLAG/BLOCK/ALL),
-            min_score, max_score, min_amount, max_amount (RM), minutes_ago.""",
+            "description": (
+                "List/show transactions. Use ONLY for displaying transactions, never for counting. "
+                "For counts use analyze_trends. "
+                "Optional filters: limit (only if user says a number), "
+                "decision_filter (APPROVE/FLAG/BLOCK/ALL), "
+                "min_score, max_score (0-1), "
+                "min_amount, max_amount (RM), "
+                "minutes_ago (60=last hour)."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Only set when user explicitly requests a specific count"},
+                    "limit":           {"type": "integer"},
                     "decision_filter": {"type": "string", "enum": ["APPROVE", "FLAG", "BLOCK", "ALL"]},
-                    "min_score": {"type": "number"},
-                    "max_score": {"type": "number"},
-                    "min_amount": {"type": "number", "description": "Minimum amount in RM"},
-                    "max_amount": {"type": "number", "description": "Maximum amount in RM"},
-                    "minutes_ago": {"type": "integer", "description": "60=last hour, 1440=last day"}
+                    "min_score":       {"type": "number"},
+                    "max_score":       {"type": "number"},
+                    "min_amount":      {"type": "number"},
+                    "max_amount":      {"type": "number"},
+                    "minutes_ago":     {"type": "integer"}
                 }
             }
         }
@@ -50,10 +55,11 @@ tools = [
         "type": "function",
         "function": {
             "name": "analyze_trends",
-            "description": """Analyze fraud counts and patterns across ALL transactions.
-            Use for: 'how many blocked/flagged/approved?', 'total transactions', 'fraud rate',
-            'average score', 'trends', 'patterns', 'is system working well?'
-            Always use this for counting — never get_transactions for counts.""",
+            "description": (
+                "Get counts and fraud patterns across ALL transactions. "
+                "Use for: how many blocked/flagged/approved, total count, fraud rate, "
+                "average score, trends, patterns, system performance."
+            ),
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -61,7 +67,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "analyze_account",
-            "description": "Full risk analysis for a specific user account by user_id",
+            "description": "Risk analysis for a specific user account. Requires user_id.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -107,7 +113,6 @@ def execute_tool(tool_name, tool_input):
 
         if decision_filter and decision_filter != "ALL":
             filtered = [t for t in filtered if t["decision"] == decision_filter]
-
         if min_score is not None:
             filtered = [t for t in filtered if t.get("score", 0) >= min_score]
         if max_score is not None:
@@ -125,7 +130,6 @@ def execute_tool(tool_name, tool_input):
 
     elif tool_name == "analyze_trends":
         all_txs = requests.get(f"{API_URL}/history").json().get("transactions", [])
-
         if not all_txs:
             return {"error": "No transactions available yet"}
 
@@ -160,10 +164,10 @@ def execute_tool(tool_name, tool_input):
                 "fraud_rate_pct": round(len(blocked) / len(all_txs) * 100, 1)
             },
             "score_distribution": {
-                "high_risk_above_0.7": len([t for t in all_txs if t.get("score", 0) >= 0.7]),
+                "high_risk_above_0.7":    len([t for t in all_txs if t.get("score", 0) >= 0.7]),
                 "medium_risk_0.4_to_0.7": len([t for t in all_txs if 0.4 <= t.get("score", 0) < 0.7]),
-                "low_risk_below_0.4": len([t for t in all_txs if t.get("score", 0) < 0.4]),
-                "average_score": round(sum(scores) / len(scores), 4),
+                "low_risk_below_0.4":     len([t for t in all_txs if t.get("score", 0) < 0.4]),
+                "average_score":          round(sum(scores) / len(scores), 4),
             },
             "amount_stats_rm": {
                 "average": round(sum(amounts) / len(amounts), 2),
@@ -200,34 +204,31 @@ def execute_tool(tool_name, tool_input):
 
 
 def _friendly_rate_limit_msg(error_str: str) -> str:
-    """Extract wait time from Groq 429 message and return a friendly string."""
     import re
     match = re.search(r'try again in ([\d]+m[\d.]+s|[\d.]+s|[\d]+m)', error_str)
     wait  = match.group(1) if match else "a few minutes"
     return (
-        f"⏳ The AI is temporarily unavailable — the daily free-tier token limit has been reached. "
+        f"⏳ The AI has hit its daily free-tier token limit. "
         f"Please try again in **{wait}**.\n\n"
-        f"_(Tip: the limit resets every 24 hours. "
-        f"Upgrade at console.groq.com for higher limits.)_"
+        f"_(Upgrade at console.groq.com for higher limits.)_"
     )
 
 
 def run_agent(user_message):
-    from groq import RateLimitError
-
     messages = [
         {
             "role": "system",
-            "content": """You are FraudShield AI, a fraud detection assistant for Malaysian banking.
-Always call a tool before answering. Never guess numbers.
-
-Tool routing:
-- COUNT questions (how many blocked/flagged/approved, fraud rate, totals) → analyze_trends
-- LIST/SHOW transactions → get_transactions (only set limit if user says a number)
-- Model metrics (precision, recall, AUC) → get_model_stats
-- Specific user account → analyze_account
-
-Style: use ✅ approved, ⚠️ flagged, 🚨 blocked. Show RM amounts. Be concise."""
+            "content": (
+                "You are FraudShield AI, a fraud detection assistant for Malaysian banking. "
+                "Always call exactly ONE tool before answering. Never guess numbers. "
+                "Never call analyze_account unless the user provides a specific user_id. "
+                "Tool routing: "
+                "counts/totals/patterns/performance → analyze_trends; "
+                "list transactions → get_transactions; "
+                "model metrics → get_model_stats; "
+                "specific user → analyze_account. "
+                "Use ✅ approved ⚠️ flagged 🚨 blocked. Show RM amounts. Be concise."
+            )
         },
         {"role": "user", "content": user_message}
     ]
@@ -239,7 +240,7 @@ Style: use ✅ approved, ⚠️ flagged, 🚨 blocked. Show RM amounts. Be conci
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
-                max_tokens=600
+                max_tokens=500
             )
 
             message = response.choices[0].message
@@ -259,5 +260,26 @@ Style: use ✅ approved, ⚠️ flagged, 🚨 blocked. Show RM amounts. Be conci
                 return message.content
 
     except RateLimitError as e:
-        # Return a friendly message instead of crashing with a 500
         return _friendly_rate_limit_msg(str(e))
+
+    except BadRequestError as e:
+        print(f"[agent] BadRequestError: {e}")
+        # Model failed to generate valid tool call syntax — answer directly from stats
+        try:
+            stats = requests.get(f"{API_URL}/stats").json()
+            history = requests.get(f"{API_URL}/history").json()
+            txs = history.get("transactions", [])
+            blocked = sum(1 for t in txs if t["decision"] == "BLOCK")
+            flagged = sum(1 for t in txs if t["decision"] == "FLAG")
+            approved = sum(1 for t in txs if t["decision"] == "APPROVE")
+            total = len(txs)
+            return (
+                f"Here's a summary from the latest data:\n\n"
+                f"🚨 Blocked: **{blocked}**\n"
+                f"⚠️ Flagged: **{flagged}**\n"
+                f"✅ Approved: **{approved}**\n"
+                f"📊 Total: **{total}**\n\n"
+                f"_(Auto-summary — please rephrase your question if you need more detail.)_"
+            )
+        except Exception:
+            return "⚠️ Something went wrong processing your request. Please try rephrasing your question."
