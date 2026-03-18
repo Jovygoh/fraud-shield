@@ -24,7 +24,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "get_transactions",
-            "description": """Fetch and filter transactions. Use for ANY question about transactions.
+            "description": """Fetch and filter transactions. Use for ANY question about specific transactions or listing them.
             Supports filtering by decision, amount, fraud score, time, and count.
             Examples:
             - 'show blocked transactions'       → decision_filter='BLOCK'
@@ -35,13 +35,16 @@ tools = [
             - 'large transactions over RM500'    → min_amount=500
             - 'show all flagged'                 → decision_filter='FLAG'
             - 'blocked transactions above RM200' → decision_filter='BLOCK', min_amount=200
-            Always call this before answering any transaction question.""",
+
+            IMPORTANT: Do NOT use this tool for counting or summary questions like
+            'how many blocked?' or 'what is the fraud rate?' — use analyze_trends instead.
+            Only use this when the user wants to SEE a list of transactions.""",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "limit": {
                         "type": "integer",
-                        "description": "How many transactions to return (default 20)"
+                        "description": "How many transactions to return. Only set this when the user explicitly asks for a specific number (e.g. 'last 5'). Omit otherwise to return all matching transactions."
                     },
                     "decision_filter": {
                         "type": "string",
@@ -76,14 +79,18 @@ tools = [
         "type": "function",
         "function": {
             "name": "analyze_trends",
-            "description": """Analyze fraud trends and patterns across all transactions.
+            "description": """Analyze fraud trends, counts, and patterns across ALL transactions.
             Returns fraud rate, score distribution, amount stats, peak risk periods, and trend direction.
             Use for questions like:
+            - 'how many transactions were blocked / flagged / approved?'
+            - 'what is the total number of transactions?'
             - 'what are the trends?'
             - 'how is the system performing overall?'
             - 'what patterns do you see?'
             - 'is fraud increasing or decreasing?'
-            - 'what is the average fraud score?'""",
+            - 'what is the average fraud score?'
+            - 'how many high risk transactions are there?'
+            This tool always counts ALL transactions — never use get_transactions for counting.""",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -125,13 +132,15 @@ def execute_tool(tool_name, tool_input):
         response = requests.get(f"{API_URL}/history")
         all_txs = response.json().get("transactions", [])
 
-        limit          = tool_input.get("limit", 20)
+        # Only apply a limit when the user explicitly requested one.
+        # Default to ALL transactions so counts are never truncated.
+        limit           = tool_input.get("limit", len(all_txs))
         decision_filter = tool_input.get("decision_filter", "ALL")
-        min_score      = tool_input.get("min_score")
-        max_score      = tool_input.get("max_score")
-        min_amount     = tool_input.get("min_amount")
-        max_amount     = tool_input.get("max_amount")
-        minutes_ago    = tool_input.get("minutes_ago")
+        min_score       = tool_input.get("min_score")
+        max_score       = tool_input.get("max_score")
+        min_amount      = tool_input.get("min_amount")
+        max_amount      = tool_input.get("max_amount")
+        minutes_ago     = tool_input.get("minutes_ago")
 
         filtered = all_txs
 
@@ -166,10 +175,11 @@ def execute_tool(tool_name, tool_input):
         for t in filtered:
             t["amount_rm"] = round(math.exp(t.get("amount", 0)), 2)
 
+        total_matching = len(filtered)
         result = filtered[-limit:]
 
         return {
-            "total_matching": len(filtered),
+            "total_matching": total_matching,
             "returned": len(result),
             "filters_applied": tool_input,
             "transactions": result
@@ -286,21 +296,30 @@ def run_agent(user_message):
 
 You have access to real-time transaction data. ALWAYS call a tool before answering — never guess numbers.
 
-Tool selection guide:
-- Any question mentioning transactions, amounts, decisions → get_transactions with correct filters
-- 'last N transactions' → get_transactions(limit=N)
-- 'last hour / last 30 minutes' → get_transactions(minutes_ago=60 or 30)
-- 'blocked / flagged / approved' → get_transactions(decision_filter='BLOCK'/'FLAG'/'APPROVE')
-- 'above RM X' → get_transactions(min_amount=X)
-- 'high risk' → get_transactions(min_score=0.7)
-- Trend / pattern / performance questions → analyze_trends
-- Model metrics (precision, recall, AUC) → get_model_stats
-- You can call multiple tools if needed
+CRITICAL TOOL ROUTING RULES — follow these exactly:
+
+1. COUNT / SUMMARY questions → ALWAYS use analyze_trends (never get_transactions)
+   Examples: 'how many blocked?', 'how many transactions total?', 'how many flagged?',
+             'what is the fraud rate?', 'how many high risk?', 'is the system working well?'
+
+2. LISTING / SHOWING transactions → use get_transactions with correct filters
+   - 'show blocked transactions'       → get_transactions(decision_filter='BLOCK')
+   - 'last 5 transactions'             → get_transactions(limit=5)  ← only set limit when user says a number
+   - 'last hour / last 30 minutes'     → get_transactions(minutes_ago=60 or 30)
+   - 'transactions above RM500'        → get_transactions(min_amount=500)
+   - 'high risk transactions'          → get_transactions(min_score=0.7)
+   - Do NOT set limit unless the user explicitly asks for a specific count
+
+3. MODEL METRICS (precision, recall, AUC) → get_model_stats
+
+4. ACCOUNT ANALYSIS for a specific user_id → analyze_account
+
+You can call multiple tools in sequence if a question needs both counts and details.
 
 Response style:
 - Use ✅ approved, ⚠️ flagged, 🚨 blocked
 - Always show RM amounts (already provided as amount_rm field)
-- Be concise and specific — give real numbers
+- Be concise and specific — give real numbers from the tool results
 - If no transactions match the filter, say so clearly"""
         },
         {"role": "user", "content": user_message}
@@ -338,3 +357,4 @@ if __name__ == "__main__":
     run_agent("Any large transactions above RM 500?")
     run_agent("What are the fraud trends?")
     run_agent("Show me the last 5 transactions")
+    run_agent("How many transactions were blocked?")
