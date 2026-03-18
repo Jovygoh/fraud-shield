@@ -38,6 +38,7 @@ transaction_history = []
 # ── Input models ──
 class Transaction(BaseModel):
     features: dict
+    demo_scores: dict | None = None   # injected by demo buttons to override model re-scoring
 
 class AgentQuery(BaseModel):
     question: str
@@ -128,26 +129,40 @@ def explain(transaction: Transaction):
         for f, v in top_features
     ]
 
-    # ── Re-score with ALL 3 models (same logic as /predict) ──────────────────
+    # ── Re-score: use demo_scores if provided, otherwise run real models ──────
     amount_rm   = round(math.exp(transaction.features.get("amount_log", 0)), 2)
     hour        = transaction.features.get("hour", None)
     is_transfer = transaction.features.get("is_transfer", 0)
     time_str    = f"{int(hour):02d}:00" if hour is not None else "unknown time"
     tx_type     = "transfer" if is_transfer == 1 else "purchase"
 
-    xgb_score = float(xgb_model.predict_proba(row)[0][1])
-    lgb_score = float(lgb_model.predict_proba(row)[0][1])
+    ds = transaction.demo_scores  # shorthand
+    if ds:
+        # Demo mode — use the injected scores so explanation matches display
+        xgb_score   = float(ds.get("xgb_score", 0))
+        lgb_score   = float(ds.get("lgb_score", 0))
+        paysim_score = float(ds.get("paysim_score", 0))
+        final_score = float(ds.get("fraud_score", 0))
+        decision    = ds.get("decision", "APPROVE")
+    else:
+        # Real mode — run all 3 models
+        xgb_score = float(xgb_model.predict_proba(row)[0][1])
+        lgb_score = float(lgb_model.predict_proba(row)[0][1])
+        features_with_defaults = {**transaction.features}
+        for col in paysim_feature_names:
+            if col not in features_with_defaults:
+                features_with_defaults[col] = 0
+        paysim_row   = pd.DataFrame([features_with_defaults])[paysim_feature_names]
+        paysim_score = float(paysim_model.predict_proba(paysim_row)[0][1])
+        final_score  = (xgb_score * 0.4) + (lgb_score * 0.3) + (paysim_score * 0.3)
+        if xgb_score >= float(xgb_threshold) or lgb_score >= float(lgb_threshold) or paysim_score >= float(paysim_threshold):
+            decision = "BLOCK"
+        elif final_score >= 0.4:
+            decision = "FLAG"
+        else:
+            decision = "APPROVE"
 
-    features_with_defaults = {**transaction.features}
-    for col in paysim_feature_names:
-        if col not in features_with_defaults:
-            features_with_defaults[col] = 0
-    paysim_row   = pd.DataFrame([features_with_defaults])[paysim_feature_names]
-    paysim_score = float(paysim_model.predict_proba(paysim_row)[0][1])
-
-    final_score = (xgb_score * 0.4) + (lgb_score * 0.3) + (paysim_score * 0.3)
-
-    # ── Determine decision + which model(s) triggered it ─────────────────────
+    # ── Determine which model(s) triggered the decision ───────────────────────
     triggered_by = []
     if xgb_score >= float(xgb_threshold):
         triggered_by.append(f"XGBoost ({round(xgb_score * 100, 1)}%)")
@@ -156,14 +171,13 @@ def explain(transaction: Transaction):
     if paysim_score >= float(paysim_threshold):
         triggered_by.append(f"PaySim mobile-money model ({round(paysim_score * 100, 1)}%)")
 
-    if triggered_by:
-        decision = "BLOCK"
-    elif final_score >= 0.4:
-        decision = "FLAG"
-        triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
-    else:
-        decision = "APPROVE"
-        triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
+    if not triggered_by:
+        if decision == "FLAG":
+            triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
+        elif decision == "APPROVE":
+            triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
+        else:
+            triggered_by = [f"ensemble score ({round(final_score * 100, 1)}%)"]
 
     trigger_str = " and ".join(triggered_by) if triggered_by else "the ensemble score"
 
