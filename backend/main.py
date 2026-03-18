@@ -106,8 +106,10 @@ def explain(transaction: Transaction):
     row = pd.DataFrame([transaction.features])[feature_names]
     shap_values = explainer.shap_values(row)
 
-    importance = dict(zip(feature_names, np.abs(shap_values[0])))
-    top_features = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:5]
+    # Use signed values (not abs) so frontend knows direction
+    signed = dict(zip(feature_names, shap_values[0]))
+    # Sort by absolute magnitude, keep top 5
+    top_features = sorted(signed.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
 
     return {
         "top_features": [
@@ -115,7 +117,7 @@ def explain(transaction: Transaction):
             for f, v in top_features
         ]
     }
-
+    
 @app.get("/history")
 def history():
     return {"transactions": transaction_history[-20:]}
