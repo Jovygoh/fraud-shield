@@ -330,7 +330,7 @@ function sendQuick(q) {
   sendMsg();
 }
 
-// ── Fetch with explicit timeout to handle slow AI tool-call responses ─────────
+// Fetch with explicit timeout — AI tool calls can take 15–30 seconds
 async function fetchWithTimeout(url, options = {}, timeoutMs = 90000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -364,7 +364,6 @@ async function sendMsg() {
     </div>`;
   msgs.scrollTop = msgs.scrollHeight;
 
-  // Animate dots while waiting
   const dotsEl = document.querySelector(`#${thinkId} .dots`);
   let dotCount = 0;
   const dotsTimer = setInterval(() => {
@@ -386,12 +385,21 @@ async function sendMsg() {
     clearInterval(dotsTimer);
     document.getElementById(thinkId)?.remove();
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => `HTTP ${res.status}`);
-      throw new Error(`Server error ${res.status}: ${errText}`);
+    // ── Parse response body first, then check status ──────────────────────
+    // Always try to get the body — even 500s return a JSON detail from FastAPI
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
     }
 
-    const data = await res.json();
+    if (!res.ok) {
+      // FastAPI error format: { "detail": "Agent error: ..." }
+      const detail = data?.detail || `Server error ${res.status}`;
+      throw new Error(detail);
+    }
+
     msgs.innerHTML += `
       <div class="chat-msg ai">
         <div class="ai-label">FRAUDSHIELD AI</div>
@@ -405,9 +413,10 @@ async function sendMsg() {
     let userMsg;
     if (err.name === 'AbortError') {
       userMsg = '⏱️ Request timed out — the AI took longer than 90 seconds. Try a simpler question or check if the backend is under load.';
-    } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-      userMsg = '🔌 Could not reach the backend. Check that the server is running and the API URL is correct.';
+    } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('Load failed')) {
+      userMsg = '🔌 Could not reach the backend. Check that the server is running.';
     } else {
+      // Show the actual server error message (e.g. "Agent error: ...")
       userMsg = `⚠️ ${err.message}`;
     }
 
