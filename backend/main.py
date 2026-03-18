@@ -135,10 +135,34 @@ def explain(transaction: Transaction):
     shap_values  = explainer.shap_values(row)
     signed       = dict(zip(feature_names, shap_values[0]))
     top_features = sorted(signed.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
-    top_features_out = [
-        {"feature": f, "importance": round(float(v), 4)}
-        for f, v in top_features
-    ]
+
+    # For demo modes, flip SHAP bar directions to match the injected decision.
+    # Raw SHAP values come from fake features and may point the wrong way.
+    ds_decision = (transaction.demo_scores or {}).get("decision", "").upper()
+    if ds_decision == "BLOCK":
+        # All bars should point ▲ fraud (positive)
+        top_features_out = [
+            {"feature": f, "importance": abs(round(float(v), 4))}
+            for f, v in top_features
+        ]
+    elif ds_decision == "APPROVE":
+        # All bars should point ▼ safe (negative)
+        top_features_out = [
+            {"feature": f, "importance": -abs(round(float(v), 4))}
+            for f, v in top_features
+        ]
+    elif ds_decision == "FLAG":
+        # Mix: top 2 ▲ fraud, rest ▼ safe — shows a genuine split
+        top_features_out = [
+            {"feature": f, "importance": abs(round(float(v), 4)) if i < 2 else -abs(round(float(v), 4))}
+            for i, (f, v) in enumerate(top_features)
+        ]
+    else:
+        # Random mode — use real SHAP values as-is
+        top_features_out = [
+            {"feature": f, "importance": round(float(v), 4)}
+            for f, v in top_features
+        ]
 
     # ── Scores: use demo_scores for demo buttons, real models for random ──────
     if ds:
@@ -198,15 +222,13 @@ def explain(transaction: Transaction):
             magnitude = "strongly" if abs(v) > 0.1 else "slightly"
             direction = "increased fraud risk" if v > 0 else "reduced fraud risk"
             shap_lines.append(f"- {label}: {magnitude} {direction}")
-    shap_text = "
-".join(shap_lines)
+    shap_text = "\n".join(shap_lines)
 
     # ── Model score lines ─────────────────────────────────────────────────────
     def threshold_label(score, threshold):
         return "TRIGGERED ⚠️" if score >= float(threshold) else "below threshold ✅"
 
-    model_text = "
-".join([
+    model_text = "\n".join([
         f"- Credit card fraud detector:   {round(xgb_score*100,1)}% — {threshold_label(xgb_score, xgb_threshold)}",
         f"- Gradient boosting detector:   {round(lgb_score*100,1)}% — {threshold_label(lgb_score, lgb_threshold)}",
         f"- Mobile payment detector:      {round(paysim_score*100,1)}% — {threshold_label(paysim_score, paysim_threshold)}",
