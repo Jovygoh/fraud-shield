@@ -125,14 +125,15 @@ async function runDemo(mode = 'random') {
     // If simulate returned hardcoded demo_scores, use them directly —
     // no need to call /predict (guarantees correct decision for demo modes)
     let d;
-    if (simData.demo_scores) {
+    const demoScores = simData.demo_scores || null;   // pass to /explain later
+    if (demoScores) {
       d = {
-        fraud_score:   simData.demo_scores.fraud_score,
-        xgb_score:     simData.demo_scores.xgb_score,
-        lgb_score:     simData.demo_scores.lgb_score,
-        paysim_score:  simData.demo_scores.paysim_score,
-        decision:      simData.demo_scores.decision,
-        color:         simData.demo_scores.color,
+        fraud_score:   demoScores.fraud_score,
+        xgb_score:     demoScores.xgb_score,
+        lgb_score:     demoScores.lgb_score,
+        paysim_score:  demoScores.paysim_score,
+        decision:      demoScores.decision,
+        color:         demoScores.color,
         models_used:   'XGBoost + LightGBM + PaySim Ensemble'
       };
     } else {
@@ -193,7 +194,7 @@ async function runDemo(mode = 'random') {
 
     const container = document.getElementById('shap-container');
     container.innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:10px"><span class="spinner"></span> Generating explanation...</div>`;
-    await loadExplain(lastFeatures);
+    await loadExplain(lastFeatures, demoScores);
 
   } catch (err) {
     errEl.textContent = 'Error: Could not connect to API. Make sure the backend is running.';
@@ -231,12 +232,13 @@ function getFeatureLabel(name) {
 }
 
 // ── SHAP EXPLANATION ──────────────────────────────────────────────────────────
-async function loadExplain(features) {
+async function loadExplain(features, demoScores = null) {
+  console.log('[loadExplain] demo_scores being sent:', demoScores);
   try {
     const res = await fetch(`${API}/explain`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ features })
+      body: JSON.stringify({ features, demo_scores: demoScores })
     });
     const data = await res.json();
     const container = document.getElementById('shap-container');
