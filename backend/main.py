@@ -182,9 +182,9 @@ Write ONE concise paragraph (2-3 sentences max) explaining why this transaction 
         import os
         groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",   # small model — saves ~3x tokens
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=120,
+            max_tokens=80,                  # summaries don't need more than 80 tokens
             temperature=0.4,
         )
         summary = response.choices[0].message.content.strip()
