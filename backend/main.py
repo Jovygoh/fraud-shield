@@ -103,6 +103,8 @@ def predict(transaction: Transaction):
         "amount": transaction.features.get("amount_log", 0),
         "xgb_score": round(xgb_score, 4),
         "lgb_score": round(lgb_score, 4),
+        "paysim_score": round(paysim_score, 4),
+        "features": transaction.features,   # stored for detail view & SHAP
     }
     transaction_history.append(record)
 
@@ -236,6 +238,25 @@ def explain(transaction: Transaction):
     ])
 
     # ── Prompt ────────────────────────────────────────────────────────────────
+    # Build explicit triggered/safe lists so AI cannot get confused
+    triggered_models = []
+    safe_models = []
+    if xgb_score >= float(xgb_threshold):
+        triggered_models.append(f"credit card fraud detector ({round(xgb_score*100,1)}%)")
+    else:
+        safe_models.append(f"credit card fraud detector ({round(xgb_score*100,1)}%)")
+    if lgb_score >= float(lgb_threshold):
+        triggered_models.append(f"gradient boosting detector ({round(lgb_score*100,1)}%)")
+    else:
+        safe_models.append(f"gradient boosting detector ({round(lgb_score*100,1)}%)")
+    if paysim_score >= float(paysim_threshold):
+        triggered_models.append(f"mobile payment detector ({round(paysim_score*100,1)}%)")
+    else:
+        safe_models.append(f"mobile payment detector ({round(paysim_score*100,1)}%)")
+
+    triggered_str = ", ".join(triggered_models) if triggered_models else "none individually"
+    safe_str_models = ", ".join(safe_models) if safe_models else "none"
+
     prompt = f"""You are a senior fraud analyst writing an explanation for a bank transaction decision.
 
 Transaction:
@@ -243,21 +264,23 @@ Transaction:
 - Time: {time_str}
 - Type: {tx_type}
 - FINAL DECISION: {decision}
-- Triggered by: {trigger_str}
+- Ensemble score: {round(final_score*100,1)}%
 
-Model scores:
-{model_text}
+Model results — READ CAREFULLY AND DO NOT MIX THESE UP:
+- TRIGGERED (exceeded fraud threshold): {triggered_str}
+- BELOW threshold (safe): {safe_str_models}
 
 Behavioural signals:
 {shap_text}
 
-Write 4-5 sentences explaining this {decision} decision. Rules:
-- The decision is {decision} — NEVER contradict this under any circumstances
-- Mention which detectors triggered and their scores
-- Describe what the behavioural signals indicated
-- Explain why the final decision is {decision}
+Write 4-5 sentences explaining this {decision} decision. STRICT RULES:
+- The decision is {decision} — NEVER contradict this
+- TRIGGERED models are the ones that exceeded their threshold — say they "flagged" or "triggered"
+- BELOW threshold models found no fraud — say they "remained below threshold" or "found no concern"
+- NEVER say a triggered model was below threshold or vice versa
+- Explain why {decision} was the final outcome given these results
 - No bullet points — flowing prose only
-- No technical names: say "credit card fraud detector" not "XGBoost", "mobile payment detector" not "PaySim", "gradient boosting detector" not "LightGBM" """
+- No technical names: "XGBoost"→"credit card fraud detector", "PaySim"→"mobile payment detector", "LightGBM"→"gradient boosting detector" """
 
     # ── Fallback summary (if Groq fails) ─────────────────────────────────────
     def fallback_summary():
@@ -309,7 +332,20 @@ Write 4-5 sentences explaining this {decision} decision. Rules:
 
 @app.get("/history")
 def history():
-    return {"transactions": transaction_history}
+    # Return summary only (no features) to keep payload small
+    summary = []
+    for t in transaction_history:
+        s = {k: v for k, v in t.items() if k != "features"}
+        summary.append(s)
+    return {"transactions": summary}
+
+@app.get("/transaction/{tx_id}")
+def get_transaction(tx_id: int):
+    """Return full transaction record including features for detail view."""
+    for t in transaction_history:
+        if t["id"] == tx_id:
+            return t
+    raise HTTPException(status_code=404, detail="Transaction not found")
 
 @app.get("/stats")
 def stats():
