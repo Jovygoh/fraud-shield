@@ -247,36 +247,15 @@ body {
 }
 
 /* ── TABLE ───────────────────────────────────── */
-/* ── SCROLLABLE TABLE ──────────────────────────────────────────────────── */
-.table-scroll-container {
-  width: 100%;
-  max-height: 520px;        /* shows ~20 rows, scroll for the rest */
-  overflow-y: auto;
-  overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  /* custom scrollbar */
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent) var(--bg3);
-}
- 
-.table-scroll-container::-webkit-scrollbar { width: 6px; height: 6px; }
-.table-scroll-container::-webkit-scrollbar-track { background: var(--bg3); border-radius: 3px; }
-.table-scroll-container::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
-.table-scroll-container::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
- 
-.table-scroll-container table {
+.table-wrap { overflow-x: auto; }
+
+table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
- 
-/* Sticky header inside scroll container */
-.table-scroll-container thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--bg3);
+
+th {
   text-align: left;
   padding: 10px 14px;
   font-size: 11px;
@@ -284,17 +263,17 @@ body {
   letter-spacing: 1px;
   color: var(--muted);
   text-transform: uppercase;
-  border-bottom: 1px solid var(--border2);
+  border-bottom: 1px solid var(--border);
 }
- 
-.table-scroll-container td {
+
+td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--text);
 }
- 
-.table-scroll-container tr:last-child td { border-bottom: none; }
-.table-scroll-container tr:hover td { background: rgba(255,255,255,0.02); }
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
 .badge {
   display: inline-flex;
@@ -349,40 +328,52 @@ body {
   text-align: right;
 }
 
-/* ── SCORER PAGE ─────────────────────────────── */
+/* ── DEMO MODE BUTTONS ───────────────────────── */
 .demo-btn {
   width: 100%;
-  padding: 14px;
-  background: var(--accent);
-  color: #000;
-  border: none;
-  border-radius: 10px;
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 14px;
-}
-.demo-btn:hover { background: #00b8e0; transform: translateY(-1px); }
-.demo-btn:disabled {
+  padding: 11px 8px;
   background: var(--bg3);
   color: var(--muted);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.demo-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.demo-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
 }
 
+.demo-btn.approve-btn { border-color: rgba(0, 230, 118, 0.3); color: var(--green); }
+.demo-btn.approve-btn:hover { background: var(--green-bg); border-color: var(--green); }
+
+.demo-btn.flag-btn { border-color: rgba(255, 179, 0, 0.3); color: var(--yellow); }
+.demo-btn.flag-btn:hover { background: var(--yellow-bg); border-color: var(--yellow); }
+
+.demo-btn.block-btn { border-color: rgba(255, 61, 87, 0.3); color: var(--red); }
+.demo-btn.block-btn:hover { background: var(--red-bg); border-color: var(--red); }
+
+/* ── DECISION BLOCK ──────────────────────────── */
 .decision-block {
   text-align: center;
   padding: 28px 20px;
   border-radius: 12px;
   margin-bottom: 14px;
 }
-.decision-block.red { background: var(--red-bg); border: 1px solid rgba(255, 61, 87, 0.3); }
-.decision-block.green { background: var(--green-bg); border: 1px solid rgba(0, 230, 118, 0.3); }
+.decision-block.red    { background: var(--red-bg);    border: 1px solid rgba(255, 61, 87, 0.3); }
+.decision-block.green  { background: var(--green-bg);  border: 1px solid rgba(0, 230, 118, 0.3); }
 .decision-block.yellow { background: var(--yellow-bg); border: 1px solid rgba(255, 179, 0, 0.3); }
-.decision-block.idle { background: var(--bg3); border: 1px solid var(--border); }
+.decision-block.idle   { background: var(--bg3);       border: 1px solid var(--border); }
 
 .decision-word {
   font-family: var(--mono);
@@ -390,10 +381,10 @@ body {
   font-weight: 700;
   letter-spacing: 4px;
 }
-.decision-block.red .decision-word { color: var(--red); }
-.decision-block.green .decision-word { color: var(--green); }
+.decision-block.red    .decision-word { color: var(--red); }
+.decision-block.green  .decision-word { color: var(--green); }
 .decision-block.yellow .decision-word { color: var(--yellow); }
-.decision-block.idle .decision-word { color: var(--muted); }
+.decision-block.idle   .decision-word { color: var(--muted); }
 
 .decision-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
 
@@ -421,8 +412,8 @@ body {
   border-radius: 6px;
   transition: width 0.8s ease;
 }
-.gauge-fill.low { background: var(--green); }
-.gauge-fill.mid { background: var(--yellow); }
+.gauge-fill.low  { background: var(--green); }
+.gauge-fill.mid  { background: var(--yellow); }
 .gauge-fill.high { background: var(--red); }
 
 .gauge-pct {
@@ -612,4 +603,16 @@ body {
   font-size: 12px;
   margin-bottom: 14px;
   display: none;
+}
+
+/* ── CLICKABLE TABLE ROWS ────────────────────── */
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.clickable-row:hover td {
+  background: rgba(0, 212, 255, 0.06) !important;
+}
+.clickable-row:hover td:first-child {
+  color: var(--accent) !important;
 }
