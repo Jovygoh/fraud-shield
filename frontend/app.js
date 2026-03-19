@@ -87,7 +87,7 @@ async function loadHistory() {
       const badgeClass = { APPROVE: 'badge-green', FLAG: 'badge-yellow', BLOCK: 'badge-red' }[tx.decision] || 'badge-green';
       const scoreColor = { red: 'var(--red)', yellow: 'var(--yellow)', green: 'var(--green)' }[barColor] || 'var(--muted)';
       const rmAmount = tx.amount ? `RM ${Math.exp(tx.amount).toFixed(2)}` : '—';
-      return `<tr>
+      return `<tr class="clickable-row" onclick="openTxDetail(${tx.id})" title="Click to view details">
         <td style="color:var(--muted);font-family:var(--mono)">#${tx.id}</td>
         <td>${tx.timestamp || '—'}</td>
         <td style="font-family:var(--mono)">${rmAmount}</td>
@@ -113,8 +113,10 @@ async function runDemo(mode = 'random') {
   const activeBtn = document.getElementById('demo-btn-' + mode);
   if (activeBtn) activeBtn.innerHTML = '<span class="spinner"></span> SCORING...';
 
+  // Always clear any previous error banner before starting a new run
   const errEl = document.getElementById('scorer-error');
   errEl.style.display = 'none';
+  errEl.textContent = '';
 
   try {
     const simRes = await fetch(`${API}/simulate?mode=${mode}`, { method: 'POST' });
@@ -151,22 +153,44 @@ async function runDemo(mode = 'random') {
     const color = d.color || (d.decision === 'BLOCK' ? 'red' : d.decision === 'FLAG' ? 'yellow' : 'green');
     block.className = 'decision-block ' + color;
     document.getElementById('decision-word').textContent = d.decision;
+    // Decision subtitle — always explains what the gauge score represents
+    let blockReason = 'Transaction blocked — fraud score exceeds threshold';
+    if (d.decision === 'BLOCK') {
+      const maxModel    = Math.max(d.xgb_score || 0, d.lgb_score || 0, d.paysim_score || 0) * 100;
+      const ensScore    = d.fraud_score * 100;
+      if (ensScore < 50 && maxModel > 70) {
+        blockReason = `Blocked — highest detector score: ${maxModel.toFixed(1)}% (ensemble: ${ensScore.toFixed(1)}%)`;
+      } else {
+        blockReason = `Blocked — fraud risk score: ${ensScore.toFixed(1)}%`;
+      }
+    }
     const subs = {
-      BLOCK: 'Transaction blocked — fraud score exceeds threshold',
+      BLOCK:   blockReason,
       APPROVE: 'Transaction approved — all models below threshold',
-      FLAG: 'Transaction flagged for manual review'
+      FLAG:    'Transaction flagged for manual review'
     };
     document.getElementById('decision-sub').textContent = subs[d.decision] || '';
 
-    const score = d.fraud_score * 100;
-    const gaugeClass = score > 80 ? 'high' : score > 40 ? 'mid' : 'low';
+    const ensembleScore = d.fraud_score * 100;
+    const xgbScore     = (d.xgb_score    || 0) * 100;
+    const lgbScore     = (d.lgb_score    || 0) * 100;
+    const psimScore    = (d.paysim_score || 0) * 100;
+
+    // Show the HIGHEST individual model score on the gauge — not the ensemble.
+    // This ensures the gauge always makes visual sense with the decision:
+    // If PaySim fires at 99.5% and triggers a BLOCK, the gauge shows 99.5%, not 30%.
+    const displayScore = d.decision === 'BLOCK'
+      ? Math.max(ensembleScore, xgbScore, lgbScore, psimScore)
+      : ensembleScore;
+
+    const gaugeClass = displayScore > 70 ? 'high' : displayScore > 35 ? 'mid' : 'low';
     const gf = document.getElementById('gauge-fill');
     gf.className = 'gauge-fill ' + gaugeClass;
-    gf.style.width = score.toFixed(1) + '%';
+    gf.style.width = displayScore.toFixed(1) + '%';
     const pctColors = { red: 'var(--red)', yellow: 'var(--yellow)', green: 'var(--green)' };
     const pctColor = pctColors[color] || 'var(--text)';
     document.getElementById('gauge-pct').style.color = pctColor;
-    document.getElementById('gauge-pct').textContent = score.toFixed(1) + '%';
+    document.getElementById('gauge-pct').textContent = displayScore.toFixed(1) + '%';
 
     const xgb = (d.xgb_score || 0) * 100;
     const lgb = (d.lgb_score || 0) * 100;
@@ -192,11 +216,18 @@ async function runDemo(mode = 'random') {
     document.getElementById('d-mismatch').textContent = mismatch == 1 ? 'YES' : 'NO';
     document.getElementById('d-mismatch').style.color = mismatch == 1 ? 'var(--red)' : 'var(--green)';
 
-    const container = document.getElementById('shap-container');
-    container.innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:10px"><span class="spinner"></span> Generating explanation...</div>`;
-    await loadExplain(lastFeatures, demoScores);
+    const shapContainer = document.getElementById('shap-container');
+    if (shapContainer) shapContainer.innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:10px"><span class="spinner"></span> Generating explanation...</div>`;
+    // SHAP runs independently — its failure never triggers the red banner
+    loadExplain(lastFeatures, demoScores, 'shap-container').catch(e => {
+      console.warn('[SHAP] explain failed:', e);
+      const sc = document.getElementById('shap-container');
+      if (sc) sc.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:10px">Explanation unavailable</div>';
+    });
 
   } catch (err) {
+    // Only show red banner for simulate / predict failures
+    console.error('[runDemo] error:', err);
     errEl.textContent = 'Error: Could not connect to API. Make sure the backend is running.';
     errEl.style.display = 'block';
   } finally {
@@ -232,16 +263,16 @@ function getFeatureLabel(name) {
 }
 
 // ── SHAP EXPLANATION ──────────────────────────────────────────────────────────
-async function loadExplain(features, demoScores = null) {
+async function loadExplain(features, demoScores = null, containerId = 'shap-container') {
   console.log('[loadExplain] demo_scores being sent:', demoScores);
   try {
     const res = await fetch(`${API}/explain`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ features, demo_scores: demoScores })
+      body: JSON.stringify({ "features": features, "demo_scores": demoScores })
     });
     const data = await res.json();
-    const container = document.getElementById('shap-container');
+    const container = document.getElementById(containerId);
     const topFeatures = data.top_features || [];
     const summary = data.summary || '';
 
@@ -293,7 +324,7 @@ async function loadExplain(features, demoScores = null) {
     container.innerHTML = summaryHtml + barsHtml + legendHtml;
 
   } catch {
-    document.getElementById('shap-container').innerHTML =
+    document.getElementById(containerId).innerHTML =
       '<div style="color:var(--muted);font-size:12px">Could not load explanation</div>';
   }
 }
@@ -469,6 +500,102 @@ async function sendMsg() {
     msgs.scrollTop = msgs.scrollHeight;
     input.focus();
   }
+}
+
+// ── TRANSACTION DETAIL MODAL ─────────────────────────────────────────────────
+async function openTxDetail(txId) {
+  const modal    = document.getElementById('tx-modal');
+  const content  = document.getElementById('tx-modal-content');
+  modal.style.display = 'flex';
+  content.innerHTML = `<div style="text-align:center;padding:40px"><span class="spinner"></span> Loading transaction #${txId}...</div>`;
+
+  try {
+    const res = await fetch(`${API}/transaction/${txId}`);
+    if (!res.ok) throw new Error('Not found');
+    const tx = await res.json();
+
+    const rmAmount   = tx.amount ? `RM ${Math.exp(tx.amount).toFixed(2)}` : '—';
+    const f          = tx.features || {};
+    const rmFull     = Math.exp(f.amount_log || 0).toFixed(2);
+    const txType     = f.is_transfer == 1 ? 'Transfer' : 'Purchase';
+    const mismatch   = f.balance_mismatch == 1;
+    const hour       = f.hour !== undefined ? `${f.hour}:00` : '—';
+    const badgeClass = { APPROVE: 'badge-green', FLAG: 'badge-yellow', BLOCK: 'badge-red' }[tx.decision] || 'badge-green';
+    const scoreColor = { red: 'var(--red)', yellow: 'var(--yellow)', green: 'var(--green)' }[tx.color] || 'var(--muted)';
+
+    const xgb  = ((tx.xgb_score    || 0) * 100).toFixed(1);
+    const lgb  = ((tx.lgb_score    || 0) * 100).toFixed(1);
+    const psim = ((tx.paysim_score || 0) * 100).toFixed(1);
+    const ens  = ((tx.score        || 0) * 100).toFixed(1);
+    const pctColor = scoreColor;
+
+    content.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="font-family:var(--mono);font-size:13px;color:var(--muted)">TRANSACTION #${tx.id}</div>
+        <button onclick="closeTxDetail()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="card" style="text-align:center">
+          <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:${scoreColor}">${tx.decision}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">${tx.timestamp}</div>
+        </div>
+        <div class="card" style="text-align:center">
+          <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:${scoreColor}">${ens}%</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">Ensemble Fraud Score</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="card">
+          <div class="section-label">Transaction Details</div>
+          <div class="detail-grid">
+            <div class="detail-item"><div class="detail-key">Amount</div><div class="detail-val">RM ${rmFull}</div></div>
+            <div class="detail-item"><div class="detail-key">Type</div><div class="detail-val">${txType}</div></div>
+            <div class="detail-item"><div class="detail-key">Hour</div><div class="detail-val">${hour}</div></div>
+            <div class="detail-item">
+              <div class="detail-key">Balance Mismatch</div>
+              <div class="detail-val" style="color:${mismatch ? 'var(--red)' : 'var(--green)'}">${mismatch ? 'YES' : 'NO'}</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-label">Model Breakdown</div>
+          <div class="model-row">
+            <div class="model-name">XGBoost</div>
+            <div class="model-bar-track"><div class="model-bar-fill" style="width:${xgb}%;background:${pctColor}"></div></div>
+            <div class="model-pct">${xgb}%</div>
+          </div>
+          <div class="model-row">
+            <div class="model-name">LightGBM</div>
+            <div class="model-bar-track"><div class="model-bar-fill" style="width:${lgb}%;background:${pctColor}"></div></div>
+            <div class="model-pct">${lgb}%</div>
+          </div>
+          <div class="model-row">
+            <div class="model-name">PaySim</div>
+            <div class="model-bar-track"><div class="model-bar-fill" style="width:${psim}%;background:${pctColor}"></div></div>
+            <div class="model-pct">${psim}%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="tx-shap-container">
+        <div class="section-label">Why Was It Flagged? (SHAP)</div>
+        <div id="tx-shap-inner"><span class="spinner"></span> Loading explanation...</div>
+      </div>`;
+
+    // Load SHAP explanation for this transaction
+    if (f && Object.keys(f).length > 0) {
+      loadExplain(f, null, 'tx-shap-inner');
+    }
+
+  } catch (err) {
+    content.innerHTML = `<div style="color:var(--red);padding:20px">Could not load transaction details.</div>`;
+  }
+}
+
+function closeTxDetail() {
+  document.getElementById('tx-modal').style.display = 'none';
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
