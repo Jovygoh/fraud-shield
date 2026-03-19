@@ -279,7 +279,13 @@
     </div>
   </div>
 
-  <script src="app.js?v=8"></script>
+  <!-- ── TRANSACTION DETAIL MODAL ──────────────── -->
+  <div id="tx-modal" onclick="if(event.target===this)closeTxDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;align-items:center;justify-content:center;padding:24px">
+    <div id="tx-modal-content" style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:24px;width:100%;max-width:760px;max-height:90vh;overflow-y:auto;position:relative">
+    </div>
+  </div>
+
+  <script src="app.js?v=14"></script>
 </body>
 
 </html>
