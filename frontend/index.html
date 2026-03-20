@@ -1,28 +1,329 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FraudShield AI</title>
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
-    /* ── Custom scrollbar — all scrollable containers ── */
+ 
+    /* ══════════════════════════════════════════
+       SHARED OVERRIDES
+    ══════════════════════════════════════════ */
     ::-webkit-scrollbar       { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
     ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #33ddff; }
-
-    /* Firefox */
     * { scrollbar-width: thin; scrollbar-color: var(--accent) rgba(255,255,255,0.04); }
+ 
+    /* ══════════════════════════════════════════
+       LANDING PAGE STYLES
+    ══════════════════════════════════════════ */
+    #landing {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: #050c14;
+      transition: opacity 0.7s ease, transform 0.7s ease;
+      overflow: hidden;
+    }
+ 
+    #landing.hide {
+      opacity: 0;
+      transform: scale(1.04);
+      pointer-events: none;
+    }
+ 
+    .grid-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      animation: gridScroll 20s linear infinite;
+    }
+    @keyframes gridScroll {
+      from { background-position: 0 0; }
+      to   { background-position: 48px 48px; }
+    }
+ 
+    .glow-blob {
+      position: fixed; border-radius: 50%;
+      filter: blur(90px); z-index: 0; pointer-events: none;
+    }
+    .blob-1 { width: 520px; height: 520px; background: rgba(0,212,255,0.10); top: -120px; left: -120px; animation: blobFloat 9s ease-in-out infinite alternate; }
+    .blob-2 { width: 400px; height: 400px; background: rgba(0,230,118,0.07); bottom: -80px; right: -80px; animation: blobFloat 12s ease-in-out infinite alternate-reverse; }
+    .blob-3 { width: 260px; height: 260px; background: rgba(255,61,87,0.06); top: 40%; left: 60%; animation: blobFloat 7s ease-in-out infinite alternate; }
+    @keyframes blobFloat {
+      from { transform: scale(1) translate(0,0); }
+      to   { transform: scale(1.12) translate(20px,-20px); }
+    }
+ 
+    .scanlines {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 3px,
+        rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px
+      );
+    }
+ 
+    /* Top bar */
+    .land-topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 64px;
+      border-bottom: 1px solid rgba(0,212,255,0.12);
+      background: rgba(5,12,20,0.7); backdrop-filter: blur(16px);
+      opacity: 0; animation: fadeDown 0.6s 0.1s forwards;
+    }
+    .land-logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 800;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted);
+    }
+    .land-logo span { color: var(--accent); }
+ 
+    /* Stage */
+    .land-stage {
+      position: relative; z-index: 2;
+      height: 100vh;
+      display: flex; align-items: center;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 64px;
+    }
+ 
+    .land-left {
+      display: flex; flex-direction: column; gap: 36px;
+      max-width: 620px;
+    }
+ 
+    .land-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.25);
+      padding: 6px 14px; border-radius: 2px;
+      width: fit-content;
+      opacity: 0; animation: fadeUp 0.6s 0.2s forwards;
+    }
+    .land-badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: ldpulse 1.4s ease-in-out infinite;
+    }
+    @keyframes ldpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+ 
+    .land-headline {
+      opacity: 0; animation: fadeUp 0.7s 0.35s forwards;
+    }
+    .land-headline h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(42px, 6vw, 82px);
+      font-weight: 800; line-height: 1.0; letter-spacing: -0.03em;
+      color: #e8edf5;
+    }
+    .land-headline h1 .hl-accent  { color: var(--accent); }
+    .land-headline h1 .hl-accent2 { color: var(--green); }
+    .land-headline .land-sub {
+      margin-top: 24px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px; font-weight: 300;
+      color: var(--muted); line-height: 1.8; letter-spacing: 0.02em;
+      max-width: 480px;
+    }
+ 
+    /* Stats row */
+    .land-stats {
+      display: flex; gap: 32px;
+      opacity: 0; animation: fadeUp 0.7s 0.45s forwards;
+    }
+    .land-stat { text-align: left; }
+    .land-stat-val {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 28px; font-weight: 500; color: var(--accent);
+    }
+    .land-stat-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; letter-spacing: 0.1em;
+      color: var(--muted); text-transform: uppercase; margin-top: 2px;
+    }
+    .land-stat-div { width: 1px; background: rgba(255,255,255,0.08); align-self: stretch; }
+ 
+    /* CTA */
+    .land-cta {
+      display: flex; align-items: center; gap: 16px;
+      opacity: 0; animation: fadeUp 0.7s 0.55s forwards;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      color: #050c14;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--green) 100%);
+      border: none; padding: 16px 36px; border-radius: 2px;
+      cursor: pointer; position: relative; overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent);
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,212,255,0.35); }
+    .btn-primary:hover::after { opacity: 1; }
+    .btn-primary:active { transform: translateY(0); }
+    .land-arrow { font-size: 18px; transition: transform 0.2s; }
+    .btn-primary:hover .land-arrow { transform: translateX(4px); }
+ 
+    .btn-secondary {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 16px 24px; border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+ 
+    /* Feature pills */
+    .land-features {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      opacity: 0; animation: fadeUp 0.7s 0.65s forwards;
+    }
+    .land-pill {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted);
+      border: 1px solid rgba(255,255,255,0.07);
+      padding: 5px 12px; border-radius: 20px;
+    }
+ 
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeDown { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
+ 
+    @media (max-width: 900px) {
+      .land-topbar { padding: 16px 28px; }
+      .land-stage  { padding: 100px 28px 48px; height: auto; }
+      .land-stats  { flex-wrap: wrap; gap: 20px; }
+    }
+ 
+    /* ══════════════════════════════════════════
+       DASHBOARD WRAPPER — hidden until launched
+    ══════════════════════════════════════════ */
+    #dashboard-root {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.7s ease 0.2s;
+    }
+    #dashboard-root.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+ 
+    /* ── Scorer demo buttons ── */
+    .approve-btn { background: rgba(0,230,118,0.15) !important; color: var(--green) !important; border: 1px solid rgba(0,230,118,0.3) !important; }
+    .approve-btn:hover { background: var(--green) !important; color: #000 !important; }
+    .flag-btn    { background: rgba(255,179,0,0.15) !important; color: var(--yellow) !important; border: 1px solid rgba(255,179,0,0.3) !important; }
+    .flag-btn:hover    { background: var(--yellow) !important; color: #000 !important; }
+    .block-btn   { background: rgba(255,61,87,0.15) !important; color: var(--red) !important; border: 1px solid rgba(255,61,87,0.3) !important; }
+    .block-btn:hover   { background: var(--red) !important; color: #fff !important; }
+ 
   </style>
 </head>
-
 <body>
-
-  <!-- ── NAV ─────────────────────────────────── -->
+ 
+<!-- ══════════════════════════════════════════════
+     LANDING PAGE
+══════════════════════════════════════════════ -->
+<div id="landing">
+  <div class="grid-bg"></div>
+  <div class="glow-blob blob-1"></div>
+  <div class="glow-blob blob-2"></div>
+  <div class="glow-blob blob-3"></div>
+  <div class="scanlines"></div>
+ 
+  <header class="land-topbar">
+    <div class="land-logo"><span>FRAUD</span>SHIELD</div>
+  </header>
+ 
+  <main class="land-stage">
+    <div class="land-left">
+ 
+      <div class="land-badge">
+        <span class="land-badge-dot"></span>
+        AI-Powered Fraud Detection · v2.0
+      </div>
+ 
+      <div class="land-headline">
+        <h1>
+          Stop Fraud.<br/>
+          <span class="hl-accent">Before</span> It<br/>
+          <span class="hl-accent2">Happens.</span>
+        </h1>
+        <p class="land-sub">
+          Secure your financial ecosystem with advanced ensemble intelligence.
+          Real-time scoring, explainable analysis, and proactive threat
+          mitigation — in a single interface.
+        </p>
+      </div>
+ 
+      <div class="land-stats">
+        <div class="land-stat">
+          <div class="land-stat-val">0.9929</div>
+          <div class="land-stat-label">AUC-ROC Score</div>
+        </div>
+        <div class="land-stat-div"></div>
+        <div class="land-stat">
+          <div class="land-stat-val">3</div>
+          <div class="land-stat-label">ML Models</div>
+        </div>
+        <div class="land-stat-div"></div>
+        <div class="land-stat">
+          <div class="land-stat-val">96%</div>
+          <div class="land-stat-label">Precision</div>
+        </div>
+      </div>
+ 
+      <div class="land-cta">
+        <button class="btn-primary" onclick="launchDashboard()">
+          Get Started <span class="land-arrow">→</span>
+        </button>
+        <button class="btn-secondary" onclick="launchDashboard()">
+          View Dashboard
+        </button>
+      </div>
+ 
+      <div class="land-features">
+        <div class="land-pill">XGBoost</div>
+        <div class="land-pill">LightGBM</div>
+        <div class="land-pill">PaySim</div>
+        <div class="land-pill">SHAP Explainability</div>
+        <div class="land-pill">Llama 3.3 70B Chat</div>
+        <div class="land-pill">Real-time Scoring</div>
+      </div>
+ 
+    </div>
+  </main>
+</div>
+ 
+ 
+<!-- ══════════════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════════════ -->
+<div id="dashboard-root">
+ 
+  <!-- NAV -->
   <div class="nav">
     <div class="nav-inner">
       <div class="nav-brand">FRAUD<span>SHIELD</span></div>
@@ -31,6 +332,10 @@
       <div class="nav-tab" onclick="showPage('performance',this)">Model Performance</div>
       <div class="nav-tab" onclick="showPage('chat',this)">AI Chat</div>
       <div class="nav-right">
+        <!-- Back to landing -->
+        <div class="nav-status" onclick="goHome()" style="cursor:pointer;margin-right:16px;opacity:0.6;transition:opacity 0.2s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+          ← Home
+        </div>
         <div class="nav-status">
           <div class="nav-dot" id="api-dot"></div>
           <span id="api-status">Connecting...</span>
@@ -38,18 +343,18 @@
       </div>
     </div>
   </div>
-
-  <!-- ── PAGE 1: DASHBOARD ────────────────────── -->
+ 
+  <!-- PAGE 1: DASHBOARD -->
   <div class="page active" id="page-dashboard">
     <div class="page-inner">
       <div class="page-title">System Overview</div>
-
+ 
       <div class="banner normal" id="pattern-banner">
         <div class="banner-dot"></div>
         <div id="pattern-text">Loading pattern data...</div>
         <div class="banner-right" id="pattern-risk">—</div>
       </div>
-
+ 
       <div class="grid-4">
         <div class="card stat-blue">
           <div class="stat-val" id="stat-total">—</div>
@@ -68,30 +373,24 @@
           <div class="stat-label">Blocked</div>
         </div>
       </div>
-
+ 
       <div class="grid-2">
         <div class="card">
           <div class="section-label">Model Precision</div>
           <div id="model-precision-bars">
             <div class="model-row">
               <div class="model-name">XGBoost</div>
-              <div class="model-bar-track">
-                <div class="model-bar-fill" style="width:96%;background:var(--accent)"></div>
-              </div>
+              <div class="model-bar-track"><div class="model-bar-fill" style="width:96%;background:var(--accent)"></div></div>
               <div class="model-pct">96%</div>
             </div>
             <div class="model-row">
               <div class="model-name">LightGBM</div>
-              <div class="model-bar-track">
-                <div class="model-bar-fill" style="width:88%;background:var(--accent)"></div>
-              </div>
+              <div class="model-bar-track"><div class="model-bar-fill" style="width:88%;background:var(--accent)"></div></div>
               <div class="model-pct">88%</div>
             </div>
             <div class="model-row">
               <div class="model-name">PaySim</div>
-              <div class="model-bar-track">
-                <div class="model-bar-fill" style="width:96%;background:var(--accent)"></div>
-              </div>
+              <div class="model-bar-track"><div class="model-bar-fill" style="width:96%;background:var(--accent)"></div></div>
               <div class="model-pct">96%</div>
             </div>
           </div>
@@ -105,19 +404,19 @@
           </div>
         </div>
       </div>
-
+ 
       <div class="card">
-        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
-          Recent Transactions
-          <span id="history-count" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0"></span>
+        <div class="section-label-row">
+          <div class="section-label" style="margin-bottom:0">All Transactions</div>
+          <div class="tx-count-badge" id="tx-count-badge"></div>
         </div>
-        <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+        <div class="table-scroll-container">
           <table>
             <thead>
               <tr>
                 <th>#</th>
                 <th>Time</th>
-                <th>Amount</th>
+                <th>Amount (log)</th>
                 <th>Fraud Score</th>
                 <th>Decision</th>
               </tr>
@@ -134,111 +433,77 @@
       </div>
     </div>
   </div>
-
-  <!-- ── PAGE 2: SCORER ───────────────────────── -->
+ 
+  <!-- PAGE 2: SCORER -->
   <div class="page" id="page-scorer">
     <div class="page-inner">
       <div class="page-title">Transaction Scorer</div>
       <div class="error-msg" id="scorer-error"></div>
-
-      <!-- ── Demo mode buttons ── -->
+ 
+      <!-- 4 demo mode buttons -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-        <button class="demo-btn" id="demo-btn-random"  onclick="runDemo('random')"  title="Generate a random transaction">
-          🎲 RANDOM
-        </button>
-        <button class="demo-btn approve-btn" id="demo-btn-approve" onclick="runDemo('approve')" title="Guarantee an approved transaction">
-          ✅ APPROVE
-        </button>
-        <button class="demo-btn flag-btn"    id="demo-btn-flag"    onclick="runDemo('flag')"    title="Guarantee a flagged transaction">
-          ⚠️ FLAG
-        </button>
-        <button class="demo-btn block-btn"   id="demo-btn-block"   onclick="runDemo('block')"   title="Guarantee a blocked transaction">
-          🚨 BLOCK
-        </button>
+        <button class="demo-btn" id="demo-btn-random" onclick="runDemo('random')" title="Generate a random transaction">🎲 RANDOM</button>
+        <button class="demo-btn approve-btn" id="demo-btn-approve" onclick="runDemo('approve')" title="Guarantee an approved transaction">✅ APPROVE</button>
+        <button class="demo-btn flag-btn"    id="demo-btn-flag"    onclick="runDemo('flag')"    title="Guarantee a flagged transaction">⚠️ FLAG</button>
+        <button class="demo-btn block-btn"   id="demo-btn-block"   onclick="runDemo('block')"   title="Guarantee a blocked transaction">🚨 BLOCK</button>
       </div>
-
+ 
       <div class="grid-2">
         <div>
           <div class="decision-block idle" id="decision-block">
             <div class="decision-word" id="decision-word">—</div>
             <div class="decision-sub" id="decision-sub">Choose a demo mode above to score a transaction</div>
           </div>
-
           <div class="card gauge-wrap">
             <div class="section-label">Fraud Risk Score</div>
             <div class="gauge-labels"><span>0% — Safe</span><span>100% — Fraud</span></div>
-            <div class="gauge-track">
-              <div class="gauge-fill low" id="gauge-fill" style="width:0%"></div>
-            </div>
+            <div class="gauge-track"><div class="gauge-fill low" id="gauge-fill" style="width:0%"></div></div>
             <div class="gauge-pct" id="gauge-pct" style="color:var(--muted)">—</div>
           </div>
-
           <div class="card">
             <div class="section-label">Transaction Details</div>
             <div class="detail-grid">
-              <div class="detail-item">
-                <div class="detail-key">Amount</div>
-                <div class="detail-val" id="d-amount">—</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-key">Type</div>
-                <div class="detail-val" id="d-type">—</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-key">Hour</div>
-                <div class="detail-val" id="d-time">—</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-key">Balance Mismatch</div>
-                <div class="detail-val" id="d-mismatch">—</div>
-              </div>
+              <div class="detail-item"><div class="detail-key">Amount</div><div class="detail-val" id="d-amount">—</div></div>
+              <div class="detail-item"><div class="detail-key">Type</div><div class="detail-val" id="d-type">—</div></div>
+              <div class="detail-item"><div class="detail-key">Hour</div><div class="detail-val" id="d-time">—</div></div>
+              <div class="detail-item"><div class="detail-key">Balance Mismatch</div><div class="detail-val" id="d-mismatch">—</div></div>
             </div>
           </div>
         </div>
-
         <div>
           <div class="card" style="margin-bottom:14px">
             <div class="section-label">Model Breakdown</div>
             <div class="model-row">
               <div class="model-name">XGBoost</div>
-              <div class="model-bar-track">
-                <div class="model-bar-fill" id="xgb-bar" style="width:0%;background:var(--accent)"></div>
-              </div>
+              <div class="model-bar-track"><div class="model-bar-fill" id="xgb-bar" style="width:0%;background:var(--accent)"></div></div>
               <div class="model-pct" id="xgb-pct">—</div>
             </div>
             <div class="model-row">
               <div class="model-name">LightGBM</div>
-              <div class="model-bar-track">
-                <div class="model-bar-fill" id="lgb-bar" style="width:0%;background:var(--accent)"></div>
-              </div>
+              <div class="model-bar-track"><div class="model-bar-fill" id="lgb-bar" style="width:0%;background:var(--accent)"></div></div>
               <div class="model-pct" id="lgb-pct">—</div>
             </div>
             <div class="model-row">
               <div class="model-name">PaySim</div>
-              <div class="model-bar-track">
-                <div class="model-bar-fill" id="psm-bar" style="width:0%;background:var(--accent)"></div>
-              </div>
+              <div class="model-bar-track"><div class="model-bar-fill" id="psm-bar" style="width:0%;background:var(--accent)"></div></div>
               <div class="model-pct" id="psm-pct">—</div>
             </div>
             <div style="margin-top:10px;font-size:11px;color:var(--muted);font-family:var(--mono)" id="models-used">
               XGBoost 40% + LightGBM 30% + PaySim 30%
             </div>
           </div>
-
           <div class="card">
             <div class="section-label">Why Was It Flagged? (SHAP)</div>
             <div id="shap-container">
-              <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">
-                Run a transaction to see explanation
-              </div>
+              <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Run a transaction to see explanation</div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-
-  <!-- ── PAGE 3: PERFORMANCE ──────────────────── -->
+ 
+  <!-- PAGE 3: PERFORMANCE -->
   <div class="page" id="page-performance">
     <div class="page-inner">
       <div class="page-title">Model Performance</div>
@@ -249,8 +514,8 @@
       </div>
     </div>
   </div>
-
-  <!-- ── PAGE 4: CHAT ─────────────────────────── -->
+ 
+  <!-- PAGE 4: CHAT -->
   <div class="page" id="page-chat">
     <div class="page-inner">
       <div class="page-title">AI Assistant</div>
@@ -278,14 +543,38 @@
       </div>
     </div>
   </div>
-
-  <!-- ── TRANSACTION DETAIL MODAL ──────────────── -->
-  <div id="tx-modal" onclick="if(event.target===this)closeTxDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;align-items:center;justify-content:center;padding:24px">
-    <div id="tx-modal-content" style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:24px;width:100%;max-width:760px;max-height:90vh;overflow-y:auto;position:relative">
-    </div>
-  </div>
-
-  <script src="app.js?v=14"></script>
+ 
+</div><!-- end #dashboard-root -->
+ 
+ 
+<!-- ══════════════════════════════════════════════
+     LANDING ↔ DASHBOARD TRANSITION
+══════════════════════════════════════════════ -->
+<script>
+  function launchDashboard() {
+    document.getElementById('landing').classList.add('hide');
+    const dash = document.getElementById('dashboard-root');
+    dash.classList.add('show');
+    // Load data after transition starts
+    setTimeout(() => {
+      checkAPI();
+      loadDashboard();
+    }, 300);
+    // Fully remove landing after animation
+    setTimeout(() => {
+      document.getElementById('landing').style.display = 'none';
+    }, 800);
+  }
+ 
+  function goHome() {
+    const landing = document.getElementById('landing');
+    landing.style.display = '';
+    landing.classList.remove('hide');
+    document.getElementById('dashboard-root').classList.remove('show');
+  }
+</script>
+ 
+<script src="app.js?v=4"></script>
+ 
 </body>
-
 </html>
