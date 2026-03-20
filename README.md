@@ -3,7 +3,7 @@
 > **Real-time AI-powered fraud detection for financial transactions**  
 > Built for VHack 2026 — Case Study 2: Financial Fraud Detection
 
-[![Live Frontend](https://fraud-shield-beryl.vercel.app/)
+[![Live Frontend]([![Live Frontend](https://img.shields.io/badge/Frontend-Live%20on%20Vercel-blueviolet)](https://fraud-shield-beryl.vercel.app)
 [![Live API](https://img.shields.io/badge/API-Live%20on%20Railway-success)](https://fraud-shield-production-d3a8.up.railway.app)
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.135-green)](https://fastapi.tiangolo.com)
@@ -15,7 +15,7 @@
 
 | Service | URL |
 |---|---|
-| **Live Frontend Dashboard** | https://fraud-shield-flame.vercel.app |
+| **Live Frontend Dashboard** | https://fraud-shield-beryl.vercel.app |
 | **Live Backend API** | https://fraud-shield-production-d3a8.up.railway.app |
 | **Interactive API Docs** | https://fraud-shield-production-d3a8.up.railway.app/docs |
 
