@@ -16,6 +16,7 @@
     ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #33ddff; }
     * { scrollbar-width: thin; scrollbar-color: var(--accent) rgba(255,255,255,0.04); }
+    body.landing-active { overflow: hidden !important; height: 100% !important; }
 
     /* ══════════════════════════════════════════
        LANDING PAGE
@@ -395,7 +396,7 @@
     /* Landing responsive */
     @media (max-width: 900px) {
       .land-topbar { padding: 16px 28px; }
-      .land-stage  { padding: 100px 28px 48px; height: auto; min-height: 100vh; }
+      .land-stage  { padding: 100px 28px 48px; height: 100vh; min-height: unset; overflow: hidden; }
       .land-stats  { gap: 20px; }
       .land-stat-div { display: none; }
     }
@@ -778,6 +779,7 @@
 ══════════════════════════════════════════════ -->
 <script>
   function launchDashboard() {
+    document.body.classList.remove('landing-active');
     document.getElementById('landing').classList.add('hide');
     const dash = document.getElementById('dashboard-root');
     dash.classList.add('show');
@@ -791,6 +793,7 @@
   }
 
   function goHome() {
+    document.body.classList.add('landing-active');
     const landing = document.getElementById('landing');
     landing.style.display = '';
     landing.classList.remove('hide');
@@ -809,6 +812,8 @@
   }
   window.addEventListener('resize', fixDemoBtnsGrid);
   window.addEventListener('load', fixDemoBtnsGrid);
+  // Lock scroll on landing
+  document.body.classList.add('landing-active');
 </script>
 
 <script src="app.js?v=14"></script>
