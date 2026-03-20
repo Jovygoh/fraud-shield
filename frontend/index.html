@@ -8,18 +8,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
- 
     /* ══════════════════════════════════════════
-       SHARED OVERRIDES
+       SCROLLBAR
     ══════════════════════════════════════════ */
     ::-webkit-scrollbar       { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
     ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #33ddff; }
     * { scrollbar-width: thin; scrollbar-color: var(--accent) rgba(255,255,255,0.04); }
- 
+
     /* ══════════════════════════════════════════
-       LANDING PAGE STYLES
+       LANDING PAGE
     ══════════════════════════════════════════ */
     #landing {
       position: fixed;
@@ -29,13 +28,12 @@
       transition: opacity 0.7s ease, transform 0.7s ease;
       overflow: hidden;
     }
- 
     #landing.hide {
       opacity: 0;
       transform: scale(1.04);
       pointer-events: none;
     }
- 
+
     .grid-bg {
       position: fixed; inset: 0; z-index: 0;
       background-image:
@@ -48,7 +46,7 @@
       from { background-position: 0 0; }
       to   { background-position: 48px 48px; }
     }
- 
+
     .glow-blob {
       position: fixed; border-radius: 50%;
       filter: blur(90px); z-index: 0; pointer-events: none;
@@ -60,7 +58,7 @@
       from { transform: scale(1) translate(0,0); }
       to   { transform: scale(1.12) translate(20px,-20px); }
     }
- 
+
     .scanlines {
       position: fixed; inset: 0; z-index: 1; pointer-events: none;
       background: repeating-linear-gradient(
@@ -69,8 +67,7 @@
         rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px
       );
     }
- 
-    /* Top bar */
+
     .land-topbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 10;
       display: flex; align-items: center; justify-content: space-between;
@@ -86,8 +83,7 @@
       color: var(--muted);
     }
     .land-logo span { color: var(--accent); }
- 
-    /* Stage */
+
     .land-stage {
       position: relative; z-index: 2;
       height: 100vh;
@@ -96,12 +92,12 @@
       margin: 0 auto;
       padding: 0 64px;
     }
- 
+
     .land-left {
       display: flex; flex-direction: column; gap: 36px;
       max-width: 620px;
     }
- 
+
     .land-badge {
       display: inline-flex; align-items: center; gap: 8px;
       font-family: 'IBM Plex Mono', monospace;
@@ -120,13 +116,11 @@
       animation: ldpulse 1.4s ease-in-out infinite;
     }
     @keyframes ldpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
- 
-    .land-headline {
-      opacity: 0; animation: fadeUp 0.7s 0.35s forwards;
-    }
+
+    .land-headline { opacity: 0; animation: fadeUp 0.7s 0.35s forwards; }
     .land-headline h1 {
       font-family: 'Syne', sans-serif;
-      font-size: clamp(42px, 6vw, 82px);
+      font-size: clamp(38px, 6vw, 82px);
       font-weight: 800; line-height: 1.0; letter-spacing: -0.03em;
       color: #e8edf5;
     }
@@ -139,11 +133,11 @@
       color: var(--muted); line-height: 1.8; letter-spacing: 0.02em;
       max-width: 480px;
     }
- 
-    /* Stats row */
+
     .land-stats {
       display: flex; gap: 32px;
       opacity: 0; animation: fadeUp 0.7s 0.45s forwards;
+      flex-wrap: wrap;
     }
     .land-stat { text-align: left; }
     .land-stat-val {
@@ -156,10 +150,9 @@
       color: var(--muted); text-transform: uppercase; margin-top: 2px;
     }
     .land-stat-div { width: 1px; background: rgba(255,255,255,0.08); align-self: stretch; }
- 
-    /* CTA */
+
     .land-cta {
-      display: flex; align-items: center; gap: 16px;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
       opacity: 0; animation: fadeUp 0.7s 0.55s forwards;
     }
     .btn-primary {
@@ -183,7 +176,7 @@
     .btn-primary:active { transform: translateY(0); }
     .land-arrow { font-size: 18px; transition: transform 0.2s; }
     .btn-primary:hover .land-arrow { transform: translateX(4px); }
- 
+
     .btn-secondary {
       font-family: 'IBM Plex Mono', monospace;
       font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
@@ -195,8 +188,7 @@
       transition: all 0.2s;
     }
     .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
- 
-    /* Feature pills */
+
     .land-features {
       display: flex; gap: 10px; flex-wrap: wrap;
       opacity: 0; animation: fadeUp 0.7s 0.65s forwards;
@@ -208,18 +200,12 @@
       border: 1px solid rgba(255,255,255,0.07);
       padding: 5px 12px; border-radius: 20px;
     }
- 
+
     @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
     @keyframes fadeDown { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
- 
-    @media (max-width: 900px) {
-      .land-topbar { padding: 16px 28px; }
-      .land-stage  { padding: 100px 28px 48px; height: auto; }
-      .land-stats  { flex-wrap: wrap; gap: 20px; }
-    }
- 
+
     /* ══════════════════════════════════════════
-       DASHBOARD WRAPPER — hidden until launched
+       DASHBOARD ROOT
     ══════════════════════════════════════════ */
     #dashboard-root {
       opacity: 0;
@@ -230,19 +216,250 @@
       opacity: 1;
       pointer-events: all;
     }
- 
-    /* ── Scorer demo buttons ── */
+
+    /* ══════════════════════════════════════════
+       TRANSACTION DETAIL MODAL (from v1)
+    ══════════════════════════════════════════ */
+    #tx-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #tx-modal.open {
+      display: flex;
+    }
+    #tx-modal-content {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 760px;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    /* ══════════════════════════════════════════
+       SCORER DEMO BUTTONS
+    ══════════════════════════════════════════ */
     .approve-btn { background: rgba(0,230,118,0.15) !important; color: var(--green) !important; border: 1px solid rgba(0,230,118,0.3) !important; }
     .approve-btn:hover { background: var(--green) !important; color: #000 !important; }
     .flag-btn    { background: rgba(255,179,0,0.15) !important; color: var(--yellow) !important; border: 1px solid rgba(255,179,0,0.3) !important; }
     .flag-btn:hover    { background: var(--yellow) !important; color: #000 !important; }
     .block-btn   { background: rgba(255,61,87,0.15) !important; color: var(--red) !important; border: 1px solid rgba(255,61,87,0.3) !important; }
     .block-btn:hover   { background: var(--red) !important; color: #fff !important; }
- 
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE OVERRIDES
+    ══════════════════════════════════════════ */
+
+    /* Nav responsive */
+    @media (max-width: 768px) {
+      .nav-inner {
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 8px 12px;
+      }
+      .nav-brand {
+        width: 100%;
+        margin-bottom: 4px;
+      }
+      .nav-tab {
+        font-size: 10px !important;
+        padding: 5px 8px !important;
+        letter-spacing: 0.04em !important;
+      }
+      .nav-right {
+        margin-left: auto;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .nav-tab {
+        font-size: 9px !important;
+        padding: 4px 6px !important;
+      }
+    }
+
+    /* Page inner responsive */
+    @media (max-width: 768px) {
+      .page-inner {
+        padding: 16px 12px !important;
+      }
+      .page-title {
+        font-size: 20px !important;
+        margin-bottom: 12px !important;
+      }
+    }
+
+    /* Grid responsive */
+    @media (max-width: 900px) {
+      .grid-4 {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
+    @media (max-width: 480px) {
+      .grid-4 {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+      }
+      .stat-val {
+        font-size: 22px !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .grid-2 {
+        grid-template-columns: 1fr !important;
+      }
+      .grid-3 {
+        grid-template-columns: 1fr !important;
+      }
+    }
+
+    /* Dashboard table responsive */
+    @media (max-width: 600px) {
+      .table-wrap, .table-scroll-container {
+        overflow-x: auto;
+      }
+      table {
+        min-width: 480px;
+      }
+    }
+
+    /* Scorer responsive */
+    @media (max-width: 768px) {
+      #page-scorer .grid-2 {
+        grid-template-columns: 1fr !important;
+      }
+      #page-scorer [style*="grid-template-columns:repeat(4"] {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
+    @media (max-width: 480px) {
+      .demo-btn {
+        font-size: 10px !important;
+        padding: 8px 4px !important;
+      }
+    }
+
+    /* Decision block responsive */
+    @media (max-width: 480px) {
+      .decision-block {
+        padding: 20px 12px !important;
+        min-height: 100px !important;
+      }
+      .decision-word {
+        font-size: 28px !important;
+      }
+    }
+
+    /* Stats grid responsive */
+    @media (max-width: 900px) {
+      #stats-grid {
+        grid-template-columns: 1fr !important;
+      }
+      #stats-grid .card[style*="grid-column:1/-1"] {
+        grid-column: auto !important;
+      }
+    }
+
+    /* Chat responsive */
+    @media (max-width: 600px) {
+      .chat-wrap {
+        height: calc(100vh - 180px) !important;
+      }
+      .chat-messages {
+        padding: 12px !important;
+      }
+      .quick-btns {
+        flex-wrap: wrap;
+        gap: 6px !important;
+        padding: 8px 12px !important;
+      }
+      .quick-btn {
+        font-size: 10px !important;
+        padding: 5px 10px !important;
+      }
+      .chat-input-row {
+        padding: 8px 12px !important;
+        gap: 8px !important;
+      }
+    }
+
+    /* Landing responsive */
+    @media (max-width: 900px) {
+      .land-topbar { padding: 16px 28px; }
+      .land-stage  { padding: 100px 28px 48px; height: auto; min-height: 100vh; }
+      .land-stats  { gap: 20px; }
+      .land-stat-div { display: none; }
+    }
+    @media (max-width: 480px) {
+      .land-stage { padding: 90px 20px 40px; }
+      .land-headline .land-sub { font-size: 12px; }
+      .btn-primary { padding: 13px 24px; font-size: 13px; }
+      .btn-secondary { padding: 13px 18px; font-size: 11px; }
+      .land-stats { gap: 16px; }
+      .land-stat-val { font-size: 22px; }
+    }
+
+    /* Modal responsive */
+    @media (max-width: 600px) {
+      #tx-modal { padding: 12px; }
+      #tx-modal-content { padding: 16px; border-radius: 10px; }
+    }
+
+    /* Banner responsive */
+    @media (max-width: 600px) {
+      .banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 10px 14px !important;
+      }
+      .banner-right {
+        margin-left: 0 !important;
+      }
+    }
+
+    /* Model rows responsive */
+    @media (max-width: 480px) {
+      .model-row {
+        gap: 6px !important;
+      }
+      .model-name {
+        font-size: 10px !important;
+        min-width: 52px !important;
+      }
+      .model-pct {
+        font-size: 10px !important;
+        min-width: 32px !important;
+      }
+    }
+
+    /* Detail grid responsive */
+    @media (max-width: 480px) {
+      .detail-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+      }
+    }
+
+    /* Gauge responsive */
+    @media (max-width: 480px) {
+      .gauge-pct {
+        font-size: 20px !important;
+      }
+    }
   </style>
 </head>
 <body>
- 
+
 <!-- ══════════════════════════════════════════════
      LANDING PAGE
 ══════════════════════════════════════════════ -->
@@ -252,19 +469,19 @@
   <div class="glow-blob blob-2"></div>
   <div class="glow-blob blob-3"></div>
   <div class="scanlines"></div>
- 
+
   <header class="land-topbar">
     <div class="land-logo"><span>FRAUD</span>SHIELD</div>
   </header>
- 
+
   <main class="land-stage">
     <div class="land-left">
- 
+
       <div class="land-badge">
         <span class="land-badge-dot"></span>
         AI-Powered Fraud Detection · v2.0
       </div>
- 
+
       <div class="land-headline">
         <h1>
           Stop Fraud.<br/>
@@ -277,7 +494,7 @@
           mitigation — in a single interface.
         </p>
       </div>
- 
+
       <div class="land-stats">
         <div class="land-stat">
           <div class="land-stat-val">0.9929</div>
@@ -294,7 +511,7 @@
           <div class="land-stat-label">Precision</div>
         </div>
       </div>
- 
+
       <div class="land-cta">
         <button class="btn-primary" onclick="launchDashboard()">
           Get Started <span class="land-arrow">→</span>
@@ -303,7 +520,7 @@
           View Dashboard
         </button>
       </div>
- 
+
       <div class="land-features">
         <div class="land-pill">XGBoost</div>
         <div class="land-pill">LightGBM</div>
@@ -312,17 +529,17 @@
         <div class="land-pill">Llama 3.3 70B Chat</div>
         <div class="land-pill">Real-time Scoring</div>
       </div>
- 
+
     </div>
   </main>
 </div>
- 
- 
+
+
 <!-- ══════════════════════════════════════════════
      DASHBOARD
 ══════════════════════════════════════════════ -->
 <div id="dashboard-root">
- 
+
   <!-- NAV -->
   <div class="nav">
     <div class="nav-inner">
@@ -332,7 +549,6 @@
       <div class="nav-tab" onclick="showPage('performance',this)">Model Performance</div>
       <div class="nav-tab" onclick="showPage('chat',this)">AI Chat</div>
       <div class="nav-right">
-        <!-- Back to landing -->
         <div class="nav-status" onclick="goHome()" style="cursor:pointer;margin-right:16px;opacity:0.6;transition:opacity 0.2s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
           ← Home
         </div>
@@ -343,18 +559,18 @@
       </div>
     </div>
   </div>
- 
+
   <!-- PAGE 1: DASHBOARD -->
   <div class="page active" id="page-dashboard">
     <div class="page-inner">
       <div class="page-title">System Overview</div>
- 
+
       <div class="banner normal" id="pattern-banner">
         <div class="banner-dot"></div>
         <div id="pattern-text">Loading pattern data...</div>
         <div class="banner-right" id="pattern-risk">—</div>
       </div>
- 
+
       <div class="grid-4">
         <div class="card stat-blue">
           <div class="stat-val" id="stat-total">—</div>
@@ -373,7 +589,7 @@
           <div class="stat-label">Blocked</div>
         </div>
       </div>
- 
+
       <div class="grid-2">
         <div class="card">
           <div class="section-label">Model Precision</div>
@@ -404,19 +620,22 @@
           </div>
         </div>
       </div>
- 
+
       <div class="card">
-        <div class="section-label-row">
-          <div class="section-label" style="margin-bottom:0">All Transactions</div>
-          <div class="tx-count-badge" id="tx-count-badge"></div>
+        <!-- v1 uses "Recent Transactions" label + history-count, v2 uses "All Transactions" + tx-count-badge -->
+        <!-- Keeping both IDs so app.js works regardless of which version targets which -->
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Recent Transactions</span>
+          <span id="history-count" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0"></span>
+          <span class="tx-count-badge" id="tx-count-badge"></span>
         </div>
-        <div class="table-scroll-container">
+        <div class="table-wrap table-scroll-container" style="max-height:400px;overflow-y:auto;overflow-x:auto">
           <table>
             <thead>
               <tr>
                 <th>#</th>
                 <th>Time</th>
-                <th>Amount (log)</th>
+                <th>Amount</th>
                 <th>Fraud Score</th>
                 <th>Decision</th>
               </tr>
@@ -433,21 +652,20 @@
       </div>
     </div>
   </div>
- 
+
   <!-- PAGE 2: SCORER -->
   <div class="page" id="page-scorer">
     <div class="page-inner">
       <div class="page-title">Transaction Scorer</div>
       <div class="error-msg" id="scorer-error"></div>
- 
-      <!-- 4 demo mode buttons -->
+
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
         <button class="demo-btn" id="demo-btn-random" onclick="runDemo('random')" title="Generate a random transaction">🎲 RANDOM</button>
         <button class="demo-btn approve-btn" id="demo-btn-approve" onclick="runDemo('approve')" title="Guarantee an approved transaction">✅ APPROVE</button>
         <button class="demo-btn flag-btn"    id="demo-btn-flag"    onclick="runDemo('flag')"    title="Guarantee a flagged transaction">⚠️ FLAG</button>
         <button class="demo-btn block-btn"   id="demo-btn-block"   onclick="runDemo('block')"   title="Guarantee a blocked transaction">🚨 BLOCK</button>
       </div>
- 
+
       <div class="grid-2">
         <div>
           <div class="decision-block idle" id="decision-block">
@@ -502,7 +720,7 @@
       </div>
     </div>
   </div>
- 
+
   <!-- PAGE 3: PERFORMANCE -->
   <div class="page" id="page-performance">
     <div class="page-inner">
@@ -514,7 +732,7 @@
       </div>
     </div>
   </div>
- 
+
   <!-- PAGE 4: CHAT -->
   <div class="page" id="page-chat">
     <div class="page-inner">
@@ -543,10 +761,18 @@
       </div>
     </div>
   </div>
- 
+
 </div><!-- end #dashboard-root -->
- 
- 
+
+
+<!-- ══════════════════════════════════════════════
+     TRANSACTION DETAIL MODAL (from v1 — enables clickable rows)
+══════════════════════════════════════════════ -->
+<div id="tx-modal" onclick="if(event.target===this)closeTxDetail()">
+  <div id="tx-modal-content"></div>
+</div>
+
+
 <!-- ══════════════════════════════════════════════
      LANDING ↔ DASHBOARD TRANSITION
 ══════════════════════════════════════════════ -->
@@ -555,26 +781,37 @@
     document.getElementById('landing').classList.add('hide');
     const dash = document.getElementById('dashboard-root');
     dash.classList.add('show');
-    // Load data after transition starts
     setTimeout(() => {
-      checkAPI();
-      loadDashboard();
+      if (typeof checkAPI === 'function') checkAPI();
+      if (typeof loadDashboard === 'function') loadDashboard();
     }, 300);
-    // Fully remove landing after animation
     setTimeout(() => {
       document.getElementById('landing').style.display = 'none';
     }, 800);
   }
- 
+
   function goHome() {
     const landing = document.getElementById('landing');
     landing.style.display = '';
     landing.classList.remove('hide');
     document.getElementById('dashboard-root').classList.remove('show');
   }
+
+  // Responsive: fix demo buttons grid on small screens
+  function fixDemoBtnsGrid() {
+    const container = document.querySelector('#page-scorer > .page-inner > div[style*="grid-template-columns:repeat(4"]');
+    if (!container) return;
+    if (window.innerWidth <= 768) {
+      container.style.gridTemplateColumns = 'repeat(2,1fr)';
+    } else {
+      container.style.gridTemplateColumns = 'repeat(4,1fr)';
+    }
+  }
+  window.addEventListener('resize', fixDemoBtnsGrid);
+  window.addEventListener('load', fixDemoBtnsGrid);
 </script>
- 
-<script src="app.js?v=4"></script>
- 
+
+<script src="app.js?v=14"></script>
+
 </body>
 </html>
