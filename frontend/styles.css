@@ -53,6 +53,46 @@ body {
   gap: 0;
 }
 
+/* ── MOBILE NAV FIX ──────────────────────────── */
+@media (max-width: 700px) {
+  .nav {
+    height: auto;
+    padding: 6px 12px 0;
+  }
+  .nav-inner {
+    height: auto;
+    flex-wrap: wrap;
+    padding-bottom: 4px;
+    align-items: center;
+  }
+  .nav-brand {
+    font-size: 12px !important;
+    letter-spacing: 1px !important;
+    margin-right: auto !important;
+    order: 1;
+    padding: 4px 0;
+  }
+  .nav-right {
+    margin-left: 0 !important;
+    order: 2;
+    padding: 4px 0;
+  }
+  /* Hide the Home back link on mobile - no room */
+  .nav-right > .nav-status:first-child {
+    display: none !important;
+  }
+  .nav-tab {
+    height: 32px !important;
+    font-size: 9px !important;
+    padding: 0 6px !important;
+    white-space: nowrap;
+    flex: 1;
+    justify-content: center;
+    border-bottom-width: 2px;
+    order: 3;
+  }
+}
+
 .nav-brand {
   font-family: var(--mono);
   font-size: 14px;
