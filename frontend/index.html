@@ -8,24 +8,28 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
-    /* ══════════════════════════════════════════
-       SCROLLBAR
-    ══════════════════════════════════════════ */
+
+    /* ── Scrollbar ── */
     ::-webkit-scrollbar       { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
     ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #33ddff; }
     * { scrollbar-width: thin; scrollbar-color: var(--accent) rgba(255,255,255,0.04); }
-    body.landing-active { overflow: hidden !important; height: 100% !important; }
 
-    /* ══════════════════════════════════════════
+    /* ── Lock body scroll while landing is visible ── */
+    body.landing-active {
+      overflow: hidden !important;
+      height: 100% !important;
+    }
+
+    /* ══════════════════════════════════════
        LANDING PAGE
-    ══════════════════════════════════════════ */
+    ══════════════════════════════════════ */
     #landing {
       position: fixed;
       inset: 0;
       z-index: 1000;
-      background: #050c14;
+      background: #080c14;
       transition: opacity 0.7s ease, transform 0.7s ease;
       overflow: hidden;
     }
@@ -35,6 +39,7 @@
       pointer-events: none;
     }
 
+    /* Animated grid */
     .grid-bg {
       position: fixed; inset: 0; z-index: 0;
       background-image:
@@ -48,10 +53,8 @@
       to   { background-position: 48px 48px; }
     }
 
-    .glow-blob {
-      position: fixed; border-radius: 50%;
-      filter: blur(90px); z-index: 0; pointer-events: none;
-    }
+    /* Glow blobs */
+    .glow-blob { position: fixed; border-radius: 50%; filter: blur(90px); z-index: 0; pointer-events: none; }
     .blob-1 { width: 520px; height: 520px; background: rgba(0,212,255,0.10); top: -120px; left: -120px; animation: blobFloat 9s ease-in-out infinite alternate; }
     .blob-2 { width: 400px; height: 400px; background: rgba(0,230,118,0.07); bottom: -80px; right: -80px; animation: blobFloat 12s ease-in-out infinite alternate-reverse; }
     .blob-3 { width: 260px; height: 260px; background: rgba(255,61,87,0.06); top: 40%; left: 60%; animation: blobFloat 7s ease-in-out infinite alternate; }
@@ -60,6 +63,7 @@
       to   { transform: scale(1.12) translate(20px,-20px); }
     }
 
+    /* Scanlines */
     .scanlines {
       position: fixed; inset: 0; z-index: 1; pointer-events: none;
       background: repeating-linear-gradient(
@@ -69,12 +73,13 @@
       );
     }
 
+    /* Top bar */
     .land-topbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 10;
       display: flex; align-items: center; justify-content: space-between;
       padding: 20px 64px;
       border-bottom: 1px solid rgba(0,212,255,0.12);
-      background: rgba(5,12,20,0.7); backdrop-filter: blur(16px);
+      background: rgba(8,12,20,0.8); backdrop-filter: blur(16px);
       opacity: 0; animation: fadeDown 0.6s 0.1s forwards;
     }
     .land-logo {
@@ -85,9 +90,11 @@
     }
     .land-logo span { color: var(--accent); }
 
+    /* Stage — always exactly viewport height, no overflow */
     .land-stage {
       position: relative; z-index: 2;
       height: 100vh;
+      overflow: hidden;
       display: flex; align-items: center;
       max-width: 1280px;
       margin: 0 auto;
@@ -95,10 +102,11 @@
     }
 
     .land-left {
-      display: flex; flex-direction: column; gap: 36px;
+      display: flex; flex-direction: column; gap: 32px;
       max-width: 620px;
     }
 
+    /* Badge */
     .land-badge {
       display: inline-flex; align-items: center; gap: 8px;
       font-family: 'IBM Plex Mono', monospace;
@@ -106,44 +114,43 @@
       color: var(--accent);
       background: rgba(0,212,255,0.08);
       border: 1px solid rgba(0,212,255,0.25);
-      padding: 6px 14px; border-radius: 2px;
-      width: fit-content;
+      padding: 6px 14px; border-radius: 2px; width: fit-content;
       opacity: 0; animation: fadeUp 0.6s 0.2s forwards;
     }
     .land-badge-dot {
       width: 6px; height: 6px; border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 8px var(--accent);
+      background: var(--accent); box-shadow: 0 0 8px var(--accent);
       animation: ldpulse 1.4s ease-in-out infinite;
     }
     @keyframes ldpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
 
+    /* Headline */
     .land-headline { opacity: 0; animation: fadeUp 0.7s 0.35s forwards; }
     .land-headline h1 {
       font-family: 'Syne', sans-serif;
-      font-size: clamp(38px, 6vw, 82px);
+      font-size: clamp(36px, 5.5vw, 80px);
       font-weight: 800; line-height: 1.0; letter-spacing: -0.03em;
       color: #e8edf5;
     }
     .land-headline h1 .hl-accent  { color: var(--accent); }
     .land-headline h1 .hl-accent2 { color: var(--green); }
     .land-headline .land-sub {
-      margin-top: 24px;
+      margin-top: 20px;
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 14px; font-weight: 300;
+      font-size: 13px; font-weight: 300;
       color: var(--muted); line-height: 1.8; letter-spacing: 0.02em;
       max-width: 480px;
     }
 
+    /* Stats row */
     .land-stats {
-      display: flex; gap: 32px;
+      display: flex; gap: 28px; flex-wrap: wrap;
       opacity: 0; animation: fadeUp 0.7s 0.45s forwards;
-      flex-wrap: wrap;
     }
     .land-stat { text-align: left; }
     .land-stat-val {
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 28px; font-weight: 500; color: var(--accent);
+      font-size: 26px; font-weight: 500; color: var(--accent);
     }
     .land-stat-label {
       font-family: 'IBM Plex Mono', monospace;
@@ -152,6 +159,7 @@
     }
     .land-stat-div { width: 1px; background: rgba(255,255,255,0.08); align-self: stretch; }
 
+    /* CTA buttons */
     .land-cta {
       display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
       opacity: 0; animation: fadeUp 0.7s 0.55s forwards;
@@ -161,9 +169,9 @@
       font-family: 'Syne', sans-serif;
       font-size: 15px; font-weight: 700;
       letter-spacing: 0.04em; text-transform: uppercase;
-      color: #050c14;
+      color: #080c14;
       background: linear-gradient(135deg, var(--accent) 0%, var(--green) 100%);
-      border: none; padding: 16px 36px; border-radius: 2px;
+      border: none; padding: 15px 34px; border-radius: 2px;
       cursor: pointer; position: relative; overflow: hidden;
       transition: transform 0.2s, box-shadow 0.2s;
     }
@@ -181,33 +189,31 @@
     .btn-secondary {
       font-family: 'IBM Plex Mono', monospace;
       font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--muted);
-      background: transparent;
+      color: var(--muted); background: transparent;
       border: 1px solid rgba(255,255,255,0.1);
-      padding: 16px 24px; border-radius: 2px;
-      cursor: pointer;
-      transition: all 0.2s;
+      padding: 15px 22px; border-radius: 2px;
+      cursor: pointer; transition: all 0.2s;
     }
     .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
 
+    /* Feature pills */
     .land-features {
-      display: flex; gap: 10px; flex-wrap: wrap;
+      display: flex; gap: 8px; flex-wrap: wrap;
       opacity: 0; animation: fadeUp 0.7s 0.65s forwards;
     }
     .land-pill {
       font-family: 'IBM Plex Mono', monospace;
       font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--muted);
-      border: 1px solid rgba(255,255,255,0.07);
+      color: var(--muted); border: 1px solid rgba(255,255,255,0.07);
       padding: 5px 12px; border-radius: 20px;
     }
 
     @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
     @keyframes fadeDown { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
 
-    /* ══════════════════════════════════════════
+    /* ══════════════════════════════════════
        DASHBOARD ROOT
-    ══════════════════════════════════════════ */
+    ══════════════════════════════════════ */
     #dashboard-root {
       opacity: 0;
       pointer-events: none;
@@ -218,252 +224,108 @@
       pointer-events: all;
     }
 
-    /* ══════════════════════════════════════════
-       TRANSACTION DETAIL MODAL (from v1)
-    ══════════════════════════════════════════ */
-    #tx-modal {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.75);
-      z-index: 999;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
+    /* ── Scrollable transaction table ── */
+    .section-label-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
     }
-    #tx-modal.open {
-      display: flex;
+    .tx-count-badge {
+      font-family: var(--mono); font-size: 11px;
+      color: var(--muted); background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 2px 10px;
     }
-    #tx-modal-content {
-      background: var(--bg2);
-      border: 1px solid var(--border2);
-      border-radius: 16px;
-      padding: 24px;
+    .table-scroll-container {
       width: 100%;
-      max-width: 760px;
-      max-height: 90vh;
+      max-height: 480px;
       overflow-y: auto;
-      position: relative;
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent) var(--bg3);
+    }
+    .table-scroll-container::-webkit-scrollbar { width: 6px; height: 6px; }
+    .table-scroll-container::-webkit-scrollbar-track { background: var(--bg3); }
+    .table-scroll-container::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+    .table-scroll-container table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .table-scroll-container thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: var(--bg3);
+      text-align: left; padding: 10px 14px;
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 1px; color: var(--muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border2);
+    }
+    .table-scroll-container td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .table-scroll-container tr:last-child td { border-bottom: none; }
+    .table-scroll-container tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Transaction modal ── */
+    #tx-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75); z-index: 999;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    #tx-modal.open { display: flex; }
+    #tx-modal-content {
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 24px;
+      width: 100%; max-width: 760px; max-height: 90vh;
+      overflow-y: auto; position: relative;
     }
 
-    /* ══════════════════════════════════════════
-       SCORER DEMO BUTTONS
-    ══════════════════════════════════════════ */
-    .approve-btn { background: rgba(0,230,118,0.15) !important; color: var(--green) !important; border: 1px solid rgba(0,230,118,0.3) !important; }
-    .approve-btn:hover { background: var(--green) !important; color: #000 !important; }
-    .flag-btn    { background: rgba(255,179,0,0.15) !important; color: var(--yellow) !important; border: 1px solid rgba(255,179,0,0.3) !important; }
-    .flag-btn:hover    { background: var(--yellow) !important; color: #000 !important; }
-    .block-btn   { background: rgba(255,61,87,0.15) !important; color: var(--red) !important; border: 1px solid rgba(255,61,87,0.3) !important; }
-    .block-btn:hover   { background: var(--red) !important; color: #fff !important; }
+    /* ── Scorer demo button colours ── */
+    .approve-btn { border-color: rgba(0,230,118,0.3) !important; color: var(--green) !important; }
+    .approve-btn:hover { background: var(--green-bg) !important; border-color: var(--green) !important; }
+    .flag-btn    { border-color: rgba(255,179,0,0.3) !important;  color: var(--yellow) !important; }
+    .flag-btn:hover    { background: var(--yellow-bg) !important; border-color: var(--yellow) !important; }
+    .block-btn   { border-color: rgba(255,61,87,0.3) !important;  color: var(--red) !important; }
+    .block-btn:hover   { background: var(--red-bg) !important;    border-color: var(--red) !important; }
 
-    /* ══════════════════════════════════════════
-       RESPONSIVE OVERRIDES
-    ══════════════════════════════════════════ */
-
-    /* Nav responsive */
-    @media (max-width: 768px) {
-      .nav-inner {
-        flex-wrap: wrap;
-        gap: 4px;
-        padding: 8px 12px;
-      }
-      .nav-brand {
-        width: 100%;
-        margin-bottom: 4px;
-      }
-      .nav-tab {
-        font-size: 10px !important;
-        padding: 5px 8px !important;
-        letter-spacing: 0.04em !important;
-      }
-      .nav-right {
-        margin-left: auto;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .nav-tab {
-        font-size: 9px !important;
-        padding: 4px 6px !important;
-      }
-    }
-
-    /* Page inner responsive */
-    @media (max-width: 768px) {
-      .page-inner {
-        padding: 16px 12px !important;
-      }
-      .page-title {
-        font-size: 20px !important;
-        margin-bottom: 12px !important;
-      }
-    }
-
-    /* Grid responsive */
-    @media (max-width: 900px) {
-      .grid-4 {
-        grid-template-columns: repeat(2, 1fr) !important;
-      }
-    }
-    @media (max-width: 480px) {
-      .grid-4 {
-        grid-template-columns: 1fr 1fr !important;
-        gap: 8px !important;
-      }
-      .stat-val {
-        font-size: 22px !important;
-      }
-    }
-
-    @media (max-width: 900px) {
-      .grid-2 {
-        grid-template-columns: 1fr !important;
-      }
-      .grid-3 {
-        grid-template-columns: 1fr !important;
-      }
-    }
-
-    /* Dashboard table responsive */
-    @media (max-width: 600px) {
-      .table-wrap, .table-scroll-container {
-        overflow-x: auto;
-      }
-      table {
-        min-width: 480px;
-      }
-    }
-
-    /* Scorer responsive */
-    @media (max-width: 768px) {
-      #page-scorer .grid-2 {
-        grid-template-columns: 1fr !important;
-      }
-      #page-scorer [style*="grid-template-columns:repeat(4"] {
-        grid-template-columns: repeat(2, 1fr) !important;
-      }
-    }
-    @media (max-width: 480px) {
-      .demo-btn {
-        font-size: 10px !important;
-        padding: 8px 4px !important;
-      }
-    }
-
-    /* Decision block responsive */
-    @media (max-width: 480px) {
-      .decision-block {
-        padding: 20px 12px !important;
-        min-height: 100px !important;
-      }
-      .decision-word {
-        font-size: 28px !important;
-      }
-    }
-
-    /* Stats grid responsive */
-    @media (max-width: 900px) {
-      #stats-grid {
-        grid-template-columns: 1fr !important;
-      }
-      #stats-grid .card[style*="grid-column:1/-1"] {
-        grid-column: auto !important;
-      }
-    }
-
-    /* Chat responsive */
-    @media (max-width: 600px) {
-      .chat-wrap {
-        height: calc(100vh - 180px) !important;
-      }
-      .chat-messages {
-        padding: 12px !important;
-      }
-      .quick-btns {
-        flex-wrap: wrap;
-        gap: 6px !important;
-        padding: 8px 12px !important;
-      }
-      .quick-btn {
-        font-size: 10px !important;
-        padding: 5px 10px !important;
-      }
-      .chat-input-row {
-        padding: 8px 12px !important;
-        gap: 8px !important;
-      }
-    }
-
-    /* Landing responsive */
+    /* ══════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════ */
     @media (max-width: 900px) {
       .land-topbar { padding: 16px 28px; }
-      .land-stage  { padding: 100px 28px 48px; height: 100vh; min-height: unset; overflow: hidden; }
-      .land-stats  { gap: 20px; }
+      .land-stage  { padding: 80px 28px 0; height: 100vh; overflow: hidden; }
       .land-stat-div { display: none; }
     }
-    @media (max-width: 480px) {
-      .land-stage { padding: 90px 20px 40px; }
+    @media (max-width: 600px) {
+      .land-stage  { padding: 80px 20px 0; }
+      .land-left   { gap: 22px; }
       .land-headline .land-sub { font-size: 12px; }
-      .btn-primary { padding: 13px 24px; font-size: 13px; }
-      .btn-secondary { padding: 13px 18px; font-size: 11px; }
-      .land-stats { gap: 16px; }
-      .land-stat-val { font-size: 22px; }
+      .btn-primary   { padding: 12px 22px; font-size: 13px; }
+      .btn-secondary { padding: 12px 16px; font-size: 11px; }
+      .land-stat-val { font-size: 20px; }
     }
-
-    /* Modal responsive */
+    @media (max-width: 768px) {
+      .nav-inner { flex-wrap: wrap; gap: 4px; padding: 8px 12px; }
+      .nav-brand { width: 100%; margin-bottom: 4px; }
+      .nav-tab { font-size: 10px !important; padding: 5px 8px !important; }
+      .page-inner { padding: 16px 12px !important; }
+      .grid-4 { grid-template-columns: repeat(2,1fr) !important; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr !important; }
+      #page-scorer [style*="repeat(4"] { grid-template-columns: repeat(2,1fr) !important; }
+    }
     @media (max-width: 600px) {
+      .chat-wrap { height: calc(100vh - 180px) !important; }
       #tx-modal { padding: 12px; }
-      #tx-modal-content { padding: 16px; border-radius: 10px; }
-    }
-
-    /* Banner responsive */
-    @media (max-width: 600px) {
-      .banner {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
-        padding: 10px 14px !important;
-      }
-      .banner-right {
-        margin-left: 0 !important;
-      }
-    }
-
-    /* Model rows responsive */
-    @media (max-width: 480px) {
-      .model-row {
-        gap: 6px !important;
-      }
-      .model-name {
-        font-size: 10px !important;
-        min-width: 52px !important;
-      }
-      .model-pct {
-        font-size: 10px !important;
-        min-width: 32px !important;
-      }
-    }
-
-    /* Detail grid responsive */
-    @media (max-width: 480px) {
-      .detail-grid {
-        grid-template-columns: 1fr 1fr !important;
-        gap: 8px !important;
-      }
-    }
-
-    /* Gauge responsive */
-    @media (max-width: 480px) {
-      .gauge-pct {
-        font-size: 20px !important;
-      }
+      #tx-modal-content { padding: 16px; }
     }
   </style>
 </head>
-<body>
+<body class="landing-active">
 
-<!-- ══════════════════════════════════════════════
+<!-- ══════════════════════════════════════════
      LANDING PAGE
-══════════════════════════════════════════════ -->
+══════════════════════════════════════════ -->
 <div id="landing">
   <div class="grid-bg"></div>
   <div class="glow-blob blob-1"></div>
@@ -517,9 +379,6 @@
         <button class="btn-primary" onclick="launchDashboard()">
           Get Started <span class="land-arrow">→</span>
         </button>
-        <button class="btn-secondary" onclick="launchDashboard()">
-          View Dashboard
-        </button>
       </div>
 
       <div class="land-features">
@@ -536,9 +395,9 @@
 </div>
 
 
-<!-- ══════════════════════════════════════════════
+<!-- ══════════════════════════════════════════
      DASHBOARD
-══════════════════════════════════════════════ -->
+══════════════════════════════════════════ -->
 <div id="dashboard-root">
 
   <!-- NAV -->
@@ -550,7 +409,9 @@
       <div class="nav-tab" onclick="showPage('performance',this)">Model Performance</div>
       <div class="nav-tab" onclick="showPage('chat',this)">AI Chat</div>
       <div class="nav-right">
-        <div class="nav-status" onclick="goHome()" style="cursor:pointer;margin-right:16px;opacity:0.6;transition:opacity 0.2s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+        <div class="nav-status" onclick="goHome()"
+          style="cursor:pointer;margin-right:16px;opacity:0.5;transition:opacity 0.2s"
+          onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">
           ← Home
         </div>
         <div class="nav-status">
@@ -622,15 +483,13 @@
         </div>
       </div>
 
+      <!-- ALL TRANSACTIONS - scrollable -->
       <div class="card">
-        <!-- v1 uses "Recent Transactions" label + history-count, v2 uses "All Transactions" + tx-count-badge -->
-        <!-- Keeping both IDs so app.js works regardless of which version targets which -->
-        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
-          <span>Recent Transactions</span>
-          <span id="history-count" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0"></span>
+        <div class="section-label-row">
+          <div class="section-label" style="margin-bottom:0">All Transactions</div>
           <span class="tx-count-badge" id="tx-count-badge"></span>
         </div>
-        <div class="table-wrap table-scroll-container" style="max-height:400px;overflow-y:auto;overflow-x:auto">
+        <div class="table-scroll-container">
           <table>
             <thead>
               <tr>
@@ -651,6 +510,7 @@
           </table>
         </div>
       </div>
+
     </div>
   </div>
 
@@ -661,10 +521,10 @@
       <div class="error-msg" id="scorer-error"></div>
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-        <button class="demo-btn" id="demo-btn-random" onclick="runDemo('random')" title="Generate a random transaction">🎲 RANDOM</button>
-        <button class="demo-btn approve-btn" id="demo-btn-approve" onclick="runDemo('approve')" title="Guarantee an approved transaction">✅ APPROVE</button>
-        <button class="demo-btn flag-btn"    id="demo-btn-flag"    onclick="runDemo('flag')"    title="Guarantee a flagged transaction">⚠️ FLAG</button>
-        <button class="demo-btn block-btn"   id="demo-btn-block"   onclick="runDemo('block')"   title="Guarantee a blocked transaction">🚨 BLOCK</button>
+        <button class="demo-btn"             id="demo-btn-random"  onclick="runDemo('random')"  title="Random transaction">🎲 RANDOM</button>
+        <button class="demo-btn approve-btn" id="demo-btn-approve" onclick="runDemo('approve')" title="Guaranteed approve">✅ APPROVE</button>
+        <button class="demo-btn flag-btn"    id="demo-btn-flag"    onclick="runDemo('flag')"    title="Guaranteed flag">⚠️ FLAG</button>
+        <button class="demo-btn block-btn"   id="demo-btn-block"   onclick="runDemo('block')"   title="Guaranteed block">🚨 BLOCK</button>
       </div>
 
       <div class="grid-2">
@@ -766,25 +626,20 @@
 </div><!-- end #dashboard-root -->
 
 
-<!-- ══════════════════════════════════════════════
-     TRANSACTION DETAIL MODAL (from v1 — enables clickable rows)
-══════════════════════════════════════════════ -->
+<!-- Transaction detail modal -->
 <div id="tx-modal" onclick="if(event.target===this)closeTxDetail()">
   <div id="tx-modal-content"></div>
 </div>
 
 
-<!-- ══════════════════════════════════════════════
-     LANDING ↔ DASHBOARD TRANSITION
-══════════════════════════════════════════════ -->
+<!-- Landing ↔ Dashboard transition script -->
 <script>
   function launchDashboard() {
     document.body.classList.remove('landing-active');
     document.getElementById('landing').classList.add('hide');
-    const dash = document.getElementById('dashboard-root');
-    dash.classList.add('show');
+    document.getElementById('dashboard-root').classList.add('show');
     setTimeout(() => {
-      if (typeof checkAPI === 'function') checkAPI();
+      if (typeof checkAPI    === 'function') checkAPI();
       if (typeof loadDashboard === 'function') loadDashboard();
     }, 300);
     setTimeout(() => {
@@ -799,24 +654,9 @@
     landing.classList.remove('hide');
     document.getElementById('dashboard-root').classList.remove('show');
   }
-
-  // Responsive: fix demo buttons grid on small screens
-  function fixDemoBtnsGrid() {
-    const container = document.querySelector('#page-scorer > .page-inner > div[style*="grid-template-columns:repeat(4"]');
-    if (!container) return;
-    if (window.innerWidth <= 768) {
-      container.style.gridTemplateColumns = 'repeat(2,1fr)';
-    } else {
-      container.style.gridTemplateColumns = 'repeat(4,1fr)';
-    }
-  }
-  window.addEventListener('resize', fixDemoBtnsGrid);
-  window.addEventListener('load', fixDemoBtnsGrid);
-  // Lock scroll on landing
-  document.body.classList.add('landing-active');
 </script>
 
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 
 </body>
 </html>
